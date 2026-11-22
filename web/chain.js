@@ -39,7 +39,7 @@
   };
   var CHAIN_ID = { mainnet: 1, sepolia: 11155111, anvil: 31337 };
   var CHAIN_HEX = { mainnet: "0x1", sepolia: "0xaa36a7", anvil: "0x7a69" };
-  var FACTORIES = { mainnet: "", sepolia: "" };
+  var FACTORIES = { mainnet: "", sepolia: "0xA4538835b53e19A5ad2B4b21104FF8DEbAd9B520" };
   var SIG = {
     photoCount: "photoCount()",
     photoAt: "photoAt(uint256)",
@@ -180,10 +180,10 @@
   };
   var OFF = "onplate-off";
   var planStore = null;
-  // Empty until a public deployment. Anvil uses this address, or ?batch= on localhost.
+  // Anvil uses this address, or ?batch= on localhost. Mainnet stays empty.
   var BATCHES = {
     mainnet: "",
-    sepolia: "",
+    sepolia: "0xdd275A792eD54b723da035717CA16b4c8Ee64367",
     anvil: "0x663F3ad617193148711d28f5334eE4Ed07016602"
   };
 
