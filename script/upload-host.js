@@ -5,7 +5,8 @@
  * Run one upload at a time. Do not store from the page while this script is
  * sending, and do not start a second send. On a public chain this sender
  * reads two endpoints and keeps a value only when they agree. It refuses
- * chain id 1. */
+ * chain id 1. On Sepolia it passes eth_estimateGas, which may be above
+ * 16,777,216. On Anvil it still caps a transaction at that number. */
 "use strict";
 
 const crypto = require("crypto");
@@ -1023,16 +1024,19 @@ async function sendTx(job, priv, to, data, gas) {
 }
 
 async function estimateGas(job, to, data) {
-  try {
-    const hex = await rpc(job.rpc, "eth_estimateGas", [{ from: job.sender, to: to, data: data, value: "0x0" }]);
-    let gas = OnPlate.u256(hex);
-    gas += gas / 64n;
-    if (gas > TX_GAS) gas = TX_GAS;
+  const hex = await rpc(job.rpc, "eth_estimateGas", [{ from: job.sender, to: to, data: data, value: "0x0" }]);
+  let gas = OnPlate.u256(hex);
+  gas += gas / 64n;
+  if (gas < 21000n) throw new Error("gas");
+  if (job.chainId === 11155111) {
+    const block = await rpc(job.rpc, "eth_getBlockByNumber", ["latest", false]);
+    const cap = OnPlate.u256(block && block.gasLimit);
+    if (!cap || gas > cap) gas = cap;
     if (gas < 21000n) throw new Error("gas");
     return gas;
-  } catch (e) {
-    return TX_GAS;
   }
+  if (gas > TX_GAS) gas = TX_GAS;
+  return gas;
 }
 
 async function storeGroups(job, priv) {
@@ -1043,11 +1047,23 @@ async function storeGroups(job, priv) {
     }
     let k = 0;
     while (i + k < job.pieces && !job.chunks[i + k] && k < GROUP) k += 1;
-    const inits = [];
-    for (let j = 0; j < k; j++) inits.push(OnPlate.creationData(sliceAt(job.image, i + j)));
-    const data = OnPlate.encodeCreatePieces(inits);
-    const rec = await sendTx(job, priv, job.batch, data, TX_GAS);
-    const accepted = takePieces(rec, job, i, k);
+    let rec = null;
+    let accepted = 0;
+    while (k >= 1 && !rec) {
+      const inits = [];
+      for (let j = 0; j < k; j++) inits.push(OnPlate.creationData(sliceAt(job.image, i + j)));
+      const data = OnPlate.encodeCreatePieces(inits);
+      let gas;
+      try {
+        gas = await estimateGas(job, job.batch, data);
+      } catch (e) {
+        k -= 1;
+        continue;
+      }
+      rec = await sendTx(job, priv, job.batch, data, gas);
+      accepted = takePieces(rec, job, i, k);
+    }
+    if (!rec) die("This group did not fit one transaction.");
     for (let j = 0; j < accepted; j++) {
       const code = await getCodeReads(job, job.chunks[i + j]);
       if (payloadHash(code) !== keccakHex(sliceAt(job.image, i + j))) {

@@ -2575,7 +2575,7 @@
     var quote;
     if (!file || packWeiPerGas == null) return "";
     try {
-      quote = P.storeQuote(Math.ceil(file.size / P.CHUNK), packWeiPerGas);
+      quote = P.storeQuote(Math.ceil(file.size / P.CHUNK), packWeiPerGas, "mainnet");
     } catch (e) {
       return "";
     }
@@ -3044,7 +3044,7 @@
       paintStatus();
       return;
     }
-    quote = P.storeQuote(count, price);
+    quote = P.storeQuote(count, price, chain);
     quoteAbout = quote.about;
     // quote.keep is twice the store estimate. The last sentence uses that reserve for a gas rise while storing and registering. It is not a separate register quote.
     paintGasQuote(node, quote);
@@ -3172,7 +3172,7 @@
     if (!file) { prepareNote("Choose a photograph."); return; }
     if (!chainChunks) { prepareNote(P.QUIET); return; }
     setPreparing(true);
-    pricePromise = P.mainnetGasPrice();
+    pricePromise = P.chainGasPrice(chain);
     Promise.all([P.canAdd(chain, factory, P.parseAddr(account) || account), fileBytes(file)]).then(function (pair) {
       var ok = pair[0];
       var bytes = pair[1];
@@ -4117,7 +4117,7 @@
       showTxCount(plan);
       openPlans();
       (function (gen, count) {
-        P.mainnetGasPrice().then(function (price) {
+        P.chainGasPrice(chain).then(function (price) {
           showQuote(count, price, gen);
         }, function () {
           showQuote(count, null, gen);

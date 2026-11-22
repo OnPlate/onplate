@@ -235,8 +235,10 @@ contract Upload is Script {
         }
     }
 
-    /// Four full pieces fit under the 16,777,216 gas cap. Five do not.
-    /// A short group is saved, then the script stops so a later run can continue.
+    /// Four full pieces fit under the 16,777,216 Osaka gas cap. Five do not.
+    /// On Sepolia the inner call is not capped at that number so state gas for
+    /// new code can sit above it. A short group is saved, then the script stops
+    /// so a later run can continue.
     /// STORE_GROUPS limits how many new groups this run creates. Default 1 so a
     /// large photograph cannot MemoryOOG the script EVM. Zero means all groups.
     function storeGroups(Job memory job) internal returns (bool) {
@@ -262,7 +264,12 @@ contract Upload is Script {
             for (j = 0; j < k; j++) {
                 inits[j] = bytes.concat(job.creation, abi.encode(sliceAt(job.image, (job.done + j) * CHUNK_MAX)));
             }
-            address[] memory made = IUploadBatch(job.batch).createPieces{value: 0, gas: TX_GAS}(inits);
+            address[] memory made;
+            if (block.chainid == 11155111) {
+                made = IUploadBatch(job.batch).createPieces(inits);
+            } else {
+                made = IUploadBatch(job.batch).createPieces{value: 0, gas: TX_GAS}(inits);
+            }
             uint256 accepted;
             for (j = 0; j < made.length; j++) {
                 if (!isChunk(made[j])) break;

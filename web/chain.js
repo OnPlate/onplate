@@ -5,18 +5,19 @@
   var QUIET = "the chain did not answer.";
   var CHUNK = 18432;
   // The factory stops at 1,150 pieces. Image bytes stay in chunk code.
-  // 28,715,457 is the Anvil receipt for one 18,432-byte piece of the Hawaii file.
-  // A denser piece of that file costs at most about 7,500 more gas.
-  // The cost line multiplies this by the piece count and the live mainnet gas price.
+  // Osaka (Anvil, mainnet now): one full piece through ChunkBatch is about 4,115,033 gas.
+  // Sepolia (Glamsterdam): a live eth_estimateGas of one full PlateChunk create was 28,730,342.
+  // The cost line multiplies gasPerChunk(chain) by the piece count and that chain's gas price.
   var CONTRACT_CHUNKS = 1150;
   var PIECE_CEILING = 1150;
-  // Four full pieces fit in one mainnet transaction. Five do not.
+  // Four full pieces fit in one Osaka transaction. Five do not.
   // OPEN_MAX is frozen in a deployed factory. STORE_GROUP_MAX is only how
   // many pieces one createPieces call may hold. Raising it does not change
   // the per-byte storage bill.
   var OPEN_MAX = 4;
   var STORE_GROUP_MAX = 16;
-  var GAS_PER_CHUNK = 28715457n;
+  var GAS_PER_CHUNK = 4115033n;
+  var GAS_PER_CHUNK_SEPOLIA = 28730342n;
   var ENTROPY_MIN = 4;
   var CHAINS = {
     mainnet: [
@@ -625,12 +626,16 @@
     return whole.toString() + "." + frac;
   }
 
-  function storeQuote(count, weiPerGas) {
+  function gasPerChunk(chain) {
+    return chain === "sepolia" ? GAS_PER_CHUNK_SEPOLIA : GAS_PER_CHUNK;
+  }
+
+  function storeQuote(count, weiPerGas, chain) {
     var cost, keep;
     count = BigInt(count);
     weiPerGas = BigInt(weiPerGas);
     if (count <= 0n || weiPerGas <= 0n) throw new Error("gasprice");
-    cost = count * GAS_PER_CHUNK * weiPerGas;
+    cost = count * gasPerChunk(chain) * weiPerGas;
     keep = cost * 2n;
     return { about: ethUp(cost, 6), keep: ethUp(keep, 6) };
   }
@@ -651,7 +656,11 @@
   }
 
   function mainnetGasPrice() {
-    var urls = CHAINS.mainnet;
+    return chainGasPrice("mainnet");
+  }
+
+  function chainGasPrice(chain) {
+    var urls = endpoints(chain);
     function step(i) {
       if (i >= urls.length) return Promise.reject(new Error("gasprice"));
       return quotedGasPrice(urls[i]).catch(function (err) {
@@ -2443,9 +2452,10 @@
   }
 
   // One wallet transaction holds only as many pieces as eth_estimateGas can fit,
-  // and never more than STORE_GROUP_MAX. A mainnet transaction also cannot ask for more than
-  // 16,777,216 gas (EIP-7825). The page follows the estimate, then refuses a
-  // group whose gas limit would cross that cap.
+  // and never more than STORE_GROUP_MAX. On Osaka (Anvil, mainnet now) a
+  // transaction cannot ask for more than 16,777,216 gas. On Sepolia that cap
+  // is execution only; the page passes the estimate, which may be higher, so
+  // the extra can pay for new contract code.
   function pendingIndexes(plan) {
     var out = [];
     var i, chunk;
@@ -2480,18 +2490,25 @@
     return sel("createPieces") + pad256(32) + pad256(n) + offsets + packed;
   }
 
-  // EIP-7825. A transaction asking for more than this is invalid on mainnet today.
+  // EIP-7825. Osaka applies this to the whole transaction. Sepolia applies it
+  // to execution gas; state gas for new code may sit above it.
   var TX_GAS_CAP = 16777216n;
+
+  function totalGasCap(chain) {
+    return chain === "sepolia" ? 0n : TX_GAS_CAP;
+  }
 
   function estimateCall(chain, from, to, data) {
     return readBlock(chain, "latest").then(function (block) {
       var cap = u256(block.gasLimit);
+      var totalCap = totalGasCap(chain);
       return postAny(chain, "eth_estimateGas", [{ from: from, to: to, data: data, value: "0x0" }]).then(function (hex) {
         var est = u256(hex);
         var gas = est + est / 64n;
-        if (est < 21000n || est > cap || est > TX_GAS_CAP) throw new Error("fit");
+        if (est < 21000n || est > cap) throw new Error("fit");
+        if (totalCap && est > totalCap) throw new Error("fit");
         if (gas > cap) gas = cap;
-        if (gas > TX_GAS_CAP) gas = TX_GAS_CAP;
+        if (totalCap && gas > totalCap) gas = totalCap;
         if (gas < est) throw new Error("fit");
         return { est: est, gas: hexQty(gas), cap: cap };
       });
@@ -2508,8 +2525,11 @@
     var capCount = indexes.length > STORE_GROUP_MAX ? STORE_GROUP_MAX : indexes.length;
     return estimateCall(chain, from, helper, dataFor(1)).then(function (one) {
       var guess = Number(one.cap / one.est);
-      var byTx = Number(TX_GAS_CAP / one.est);
-      if (byTx && byTx < guess) guess = byTx;
+      var byTx;
+      if (chain !== "sepolia") {
+        byTx = Number(TX_GAS_CAP / one.est);
+        if (byTx && byTx < guess) guess = byTx;
+      }
       if (!guess || guess < 1) guess = 1;
       if (guess > capCount) guess = capCount;
       function fit(k) {
@@ -3085,9 +3105,11 @@
     OPEN_MAX: OPEN_MAX,
     STORE_GROUP_MAX: STORE_GROUP_MAX,
     GAS_PER_CHUNK: GAS_PER_CHUNK,
+    gasPerChunk: gasPerChunk,
     photoGate: photoGate,
     storeQuote: storeQuote,
     mainnetGasPrice: mainnetGasPrice,
+    chainGasPrice: chainGasPrice,
     CHAINS: CHAINS,
     CHAIN_ID: CHAIN_ID,
     CHAIN_HEX: CHAIN_HEX,

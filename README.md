@@ -8,7 +8,7 @@ Ownership can be transferred with `transferOwnership`. `renounceOwnership` rever
 
 Solidity 0.8.37, optimizer on, 200 runs, via IR on, EVM osaka. Via IR is on because the photograph constructor's argument list does not compile with it off. A full chunk is 18,432 bytes of image and 18,433 bytes of code. The local chain uses the Osaka schedule: code deposit stays 200 gas per byte, the block gas limit is 60,000,000, and one transaction cannot ask for more than 16,777,216 gas. Four full pieces fit in one `ChunkBatch` call. A direct create of one full piece estimates about 4,050,169 gas.
 
-Sepolia is already on a later schedule. A fork probe on 2026-11-21 asked 32,204,136 gas for one full piece through `ChunkBatch` and 128,769,195 gas for four. A live `eth_estimateGas` of one full `PlateChunk` create on Sepolia returned 28,730,342. All three are over the 16,777,216 gas cap. A full 18,432-byte piece does not fit one Sepolia transaction. Do not broadcast the factory there until the piece size fits that cap. `script/ProbeGas.s.sol` is the fork probe. Compare the dry-run transaction gas in `broadcast/ProbeGas.s.sol/11155111/dry-run/run-latest.json` to the cap. `gasleft()` inside the script is the wrapper, not the transaction.
+Sepolia is already on a later schedule. Putting a piece on chain is mostly new contract code. That bill is about 1,530 gas per byte instead of 200. A live `eth_estimateGas` of one full `PlateChunk` create returned 28,730,342. The 16,777,216 cap there is execution only. The extra is state gas for that new code. The page, the host sender, and `Upload.s.sol` pass the estimate on Sepolia. They still refuse a total over 16,777,216 on Osaka and on mainnet. `script/ProbeGas.s.sol` is the fork probe. `gasleft()` inside the script is the wrapper, not the transaction.
 
 Deploy scripts revert on chain id 1. Mainnet waits for the words DEPLOY MAINNET.
 
@@ -155,6 +155,6 @@ node script/anvil-flow.js --factory 0xFACTORY
 
 `forge test` is the contract suite. `test/REDTEAM.md` names each refused move. `REVIEW.md` is the frontend pass. `selfcheck.js` checks the keccak vectors, the thumbnail, the creation bytecode, and the ABI encoding against `cast`. `anvil-flow.js` stores the chaise photograph in chunks, registers it, sells it, parks it, and reads `tokenURI` and `page()`.
 
-Sepolia is the next public chain, with verification, before any mainnet work. It has not been broadcast. A full 18,432-byte piece is over the transaction cap there. Cut the piece size first.
+Sepolia is the next public chain, with verification, before any mainnet work. It has not been broadcast. A full piece is stored with the estimated gas, which may sit above 16,777,216.
 
 The license is MIT.
