@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnPlate</title>
+<meta name="description" content="View photographs stored on-chain, and buy one that is listed.">
+<meta property="og:title" content="OnPlate">
+<meta property="og:description" content="View photographs stored on-chain, and buy one that is listed.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OnPlate">
+<meta name="twitter:description" content="View photographs stored on-chain, and buy one that is listed.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-venue="view">
+<script src="frame.js"></script>
+<header class="bar">
+  <div class="brand">
+    <button id="mark" class="mark" type="button" aria-expanded="false" aria-controls="artist-menu">OnPlate</button>
+    <div id="artist-menu" class="artist-menu" hidden></div>
+  </div>
+  <div class="wallet-top">
+    <button id="connect" class="solid" type="button">Connect</button>
+    <p id="session-on" hidden>
+      <button id="session-account" type="button"></button>
+      <button id="disconnect" type="button">Disconnect</button>
+    </p>
+  </div>
+</header>
+<main>
+  <p id="note" class="quiet" aria-live="polite"></p>
+  <div id="photos"></div>
+</main>
+<footer class="foot">
+  <div class="col">
+    <h2>Contracts</h2>
+    <div class="status">
+      <span class="status-pair">
+        <button id="factory-line" type="button"></button>
+        <button id="batch-line" type="button"></button>
+      </span>
+    </div>
+    <h2>Fallback Page</h2>
+    <p class="quiet">Downloads a local copy of the page stored on-chain.</p>
+    <div class="save-line">
+      <button id="save-page" type="button">Download the on-chain page</button>
+      <span id="save-note" aria-live="polite"></span>
+    </div>
+  </div>
+</footer>
+<dialog id="warn-dialog">
+  <p id="warn-text"></p>
+  <div class="row">
+    <button id="warn-yes" type="button">Continue</button>
+    <button id="warn-no" type="button">Cancel</button>
+  </div>
+</dialog>
+<script src="keccak.js"></script>
+<script src="png.js"></script>
+<script src="bytecode.js"></script>
+<script src="chain.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

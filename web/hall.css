@@ -1,0 +1,69 @@
+/* Alternate room. Classic pages do not load this file. */
+body[data-layout="hall"] main { max-width: 76rem; }
+
+.hall-lens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1.35rem;
+  margin: 0.15rem 0 0.35rem;
+}
+.hall-lens button { margin: 0; color: #4e6356; }
+.hall-lens button[aria-pressed="true"] { color: #1b2c22; text-decoration-color: #8d7444; }
+.hall-classic { margin-left: auto; color: #4e6356; font-size: 0.92rem; }
+.hall-note { margin: 0 0 1.15rem; }
+
+.hall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 1.5rem 1.05rem;
+  margin: 0 0 1.5rem;
+}
+.hall-strip {
+  display: flex;
+  gap: 0.8rem;
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0 0 1.15rem;
+  padding-bottom: 0.35rem;
+}
+.hall-strip .tile { flex: 0 0 9.25rem; }
+
+.tile { min-width: 0; }
+.tile-open {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #e7efe6;
+  text-decoration: none;
+  line-height: 0;
+}
+.tile-open img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: contain;
+  margin: 0;
+}
+.tile.on .tile-open { outline: 1px solid #8d7444; outline-offset: 3px; }
+.tile-cap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.7rem;
+  margin-top: 0.4rem;
+}
+.tile-cap button { margin: 0; font-size: 0.92rem; text-align: left; }
+.tile-fav[aria-pressed="true"] { color: #8d7444; }
+.tile-state { margin: 0.15rem 0 0; font-size: 0.86rem; }
+
+.hall-close { margin: 0.2rem 0 0.8rem; }
+body[data-layout="hall"] section.plate { margin-bottom: 2.2rem; }
+
+@media (max-width: 640px) {
+  .hall-grid { grid-template-columns: 1fr 1fr; gap: 1rem 0.7rem; }
+  .hall-classic { margin-left: 0; }
+}

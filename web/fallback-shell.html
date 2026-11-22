@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnPlate</title>
+<style>
+html{display:none;background:#f3f0e6;color:#1b2c22}
+html.on{display:block}
+body{margin:0;font:17px/1.6 Georgia,"Iowan Old Style",serif;background:#f3f0e6}
+header,main{max-width:72rem;margin:0 auto}
+header{padding:1.6rem 1.75rem 0}
+main{padding:.35rem 1.75rem 2.6rem}
+h1{font-weight:400;font-size:1.05rem;letter-spacing:.04em;margin:0}
+h1 a{color:#1b2c22;text-decoration-color:#8d7444;text-underline-offset:.22em}
+h1 a:not([href]){text-decoration:none}
+h2{font-weight:400;font-size:1.6rem;margin:0 0 .45rem}
+img{display:block;width:100%;height:auto;margin:0 0 1.4rem}
+section{margin:0 0 4.5rem}
+p{overflow-wrap:anywhere;margin:0 0 1rem;max-width:36rem}
+dt{color:#4e6356}
+dt,dd{margin:0}
+dd{overflow-wrap:anywhere}
+.facts{display:grid;grid-template-columns:9.5rem 1fr;gap:.22rem .75rem;max-width:40rem;margin:.4rem 0 0;font-size:.86rem;line-height:1.55}
+.hash{font-size:.74rem;white-space:nowrap}
+button{font:inherit;background:0;color:inherit;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:.18em}
+#note:empty{display:none}
+@media(max-width:640px){header,main{padding-left:1.1rem;padding-right:1.1rem}h2{font-size:1.35rem}.hash{white-space:normal}}
+</style>
+</head>
+<body>
+<script>
+if(window.top===window.self)document.documentElement.className="on";
+else document.documentElement.replaceChildren();
+</script>
+<header>
+<h1><a id="mark">OnPlate</a></h1>
+</header>
+<main>
+<p id="note"></p>
+<div id="list"></div>
+<p><button id="again" type="button">Look again</button></p>
+</main>
+<script>
+__KECCAK__
+__APP__
+</script>
+</body>
+</html>

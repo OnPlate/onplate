@@ -1,0 +1,18 @@
+cache/
+out/
+broadcast/
+.env
+.env.*
+web/page.html
+art/chaise.rgb
+script/anvil-plan.json
+.DS_Store
+
+# Local Foundry cache accidentally dropped in as a wallet path.
+0xd934*/
+
+# Practice photographs. The committed test file is art/chaise.jpg.
+testing images/
+
+# Local storage-cost sketches.
+graphs/

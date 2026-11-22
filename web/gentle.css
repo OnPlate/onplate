@@ -1,0 +1,157 @@
+/* Softer room. The formal pages keep app.css alone. */
+html:has(body[data-feel="gentle"]),
+body[data-feel="gentle"] {
+  background: #f7f3ea;
+  color: #3e4a42;
+}
+body[data-feel="gentle"] {
+  font-family: "Noto Serif", "Liberation Serif", Georgia, serif;
+  line-height: 1.7;
+}
+body[data-feel="gentle"] .bar,
+body[data-feel="gentle"] #photos {
+  background: transparent;
+}
+body[data-feel="gentle"] .brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.85rem;
+}
+body[data-feel="gentle"] .mark,
+body[data-feel="gentle"] h1,
+body[data-feel="gentle"] h2,
+body[data-feel="gentle"] section.plate h2 {
+  font-family: "Noto Serif Display", "Noto Serif", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+body[data-feel="gentle"] .mark {
+  font-size: 1.2rem;
+  text-decoration-color: #c4a574;
+}
+body[data-feel="gentle"] .feel-back {
+  font-family: "Noto Sans", "Liberation Sans", sans-serif;
+  font-size: 0.78rem;
+  color: #8a7560;
+  text-decoration: none;
+}
+body[data-feel="gentle"] .feel-back:hover,
+body[data-feel="gentle"] .feel-back:focus-visible {
+  color: #3e4a42;
+  text-decoration: underline;
+  text-decoration-color: #c4a574;
+  text-underline-offset: 0.22em;
+}
+body[data-feel="gentle"] .help,
+body[data-feel="gentle"] label,
+body[data-feel="gentle"] .artist-menu,
+body[data-feel="gentle"] .facts,
+body[data-feel="gentle"] footer.foot {
+  font-family: "Noto Sans", "Liberation Sans", sans-serif;
+}
+body[data-feel="gentle"] .quiet,
+body[data-feel="gentle"] .help,
+body[data-feel="gentle"] .facts dt {
+  color: #6d7b70;
+}
+body[data-feel="gentle"] button {
+  text-decoration-color: #c4a574;
+  text-underline-offset: 0.28em;
+}
+body[data-feel="gentle"] #prepare,
+body[data-feel="gentle"] button.solid {
+  background: #3d5c49;
+  border-radius: 999px;
+}
+body[data-feel="gentle"] button.danger { border-radius: 999px; }
+body[data-feel="gentle"] .piece-star,
+body[data-feel="gentle"] .piece-star:hover,
+body[data-feel="gentle"] .piece-star:focus-visible {
+  text-decoration: none;
+  border-radius: 0.4rem;
+}
+body[data-feel="gentle"] .artist-menu {
+  background: #fffaf3;
+  border: 1px solid #eadfce;
+  border-radius: 0.9rem;
+  box-shadow: 0 0.7rem 1.6rem rgba(90, 70, 40, 0.08);
+  padding: 0.35rem 0;
+}
+body[data-feel="gentle"] .artist-menu button,
+body[data-feel="gentle"] .artist-menu a { border-radius: 0.55rem; }
+body[data-feel="gentle"] .artist-menu button:hover,
+body[data-feel="gentle"] .artist-menu a:hover {
+  background: #f3ebe0;
+  text-decoration: none;
+}
+body[data-feel="gentle"] input,
+body[data-feel="gentle"] textarea {
+  border: 0;
+  border-radius: 0.7rem;
+  background: #fffaf3;
+  box-shadow: inset 0 0 0 1px #e4d8c4;
+  padding: 0.55rem 0.75rem;
+}
+body[data-feel="gentle"] input:focus,
+body[data-feel="gentle"] textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px #c4a574;
+}
+body[data-feel="gentle"] .drop input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  white-space: nowrap;
+}
+body[data-feel="gentle"] .drop {
+  border: 1px solid #e4d8c4;
+  border-radius: 1.15rem;
+  background: #fffaf3;
+}
+body[data-feel="gentle"] .drop.over { background: #f3ebe0; border-color: #c4a574; }
+body[data-feel="gentle"] .drop.has-file {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+body[data-feel="gentle"] section.plate > img,
+body[data-feel="gentle"] #preview img,
+body[data-feel="gentle"] .studio-reel section.plate > img {
+  border-radius: 1.1rem;
+}
+body[data-feel="gentle"] .thumb { border-radius: 0.45rem; }
+body[data-feel="gentle"] section.add { background: #f3ecdf; }
+body[data-feel="gentle"] footer.foot { background: #efe6d6; }
+body[data-feel="gentle"] #path-choice,
+body[data-feel="gentle"] .command {
+  background: #f3ebe0;
+  border-radius: 0.9rem;
+}
+body[data-feel="gentle"] .step-no {
+  border-color: #c4a574;
+  color: #6d5a42;
+}
+body[data-feel="gentle"] details.step[open] > summary > .step-no {
+  background: #3d5c49;
+  border-color: #3d5c49;
+  color: #f7f3ea;
+}
+body[data-feel="gentle"] #abandon-dialog,
+body[data-feel="gentle"] #warn-dialog,
+body[data-feel="gentle"] #pack-dialog {
+  border: 0;
+  border-radius: 1rem;
+  background: #fffaf3;
+  box-shadow: 0 1rem 2.4rem rgba(90, 70, 40, 0.16);
+}
+body[data-feel="gentle"] .status button { text-decoration: none; }

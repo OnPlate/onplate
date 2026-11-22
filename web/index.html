@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnPlate</title>
+<meta name="description" content="Store a photograph on-chain as separate contracts, then register them as one finished plate.">
+<meta property="og:title" content="OnPlate">
+<meta property="og:description" content="Store a photograph on-chain as separate contracts, then register them as one finished plate.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OnPlate">
+<meta name="twitter:description" content="Store a photograph on-chain as separate contracts, then register them as one finished plate.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<script src="frame.js"></script>
+<header class="bar">
+  <div class="brand">
+    <button id="mark" class="mark" type="button" aria-expanded="false" aria-controls="artist-menu">OnPlate</button>
+    <div id="artist-menu" class="artist-menu" hidden></div>
+  </div>
+  <div class="wallet-top">
+    <button id="connect" class="solid" type="button">Connect</button>
+    <p id="session-on" hidden>
+      <button id="session-account" type="button"></button>
+      <button id="disconnect" type="button">Disconnect</button>
+    </p>
+  </div>
+</header>
+<main>
+  <p id="note" class="quiet" aria-live="polite"></p>
+  <div id="photos"></div>
+</main>
+<section class="add">
+  <div class="col">
+    <div id="resume"></div>
+    <details id="add-panel" class="step" open>
+      <summary id="add-summary"><span class="step-no">1</span><span class="step-label">Prepare a photograph</span></summary>
+      <div class="add-body">
+    <p id="size-help" class="help">Maximum size allowed: about 21.2 MB, 1,150 pieces.</p>
+    <label id="drop" class="drop">
+      <input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+      <span id="drop-label">Drop a photograph here or click to choose</span>
+      <span id="size-now" class="help"></span>
+    </label>
+    <p id="file-error" aria-live="polite"></p>
+    <figure id="preview" hidden>
+      <img id="preview-img" alt="">
+    </figure>
+    <div id="pack" hidden>
+      <p class="help pack-ask">Would you like to use the original JPG, or a packed JPG to reduce upload costs?</p>
+      <div class="pack-pair" role="radiogroup" aria-label="Which file to store">
+        <div class="pack-card is-selected" id="pack-orig-wrap" data-pack="orig">
+          <figure id="pack-orig-fig" class="pack-choice" role="radio" tabindex="0" aria-checked="true" aria-label="Use original" data-pack="orig">
+            <img id="pack-orig" alt="Original">
+            <figcaption>
+              <strong id="pack-orig-title">Original</strong>
+              <span id="pack-orig-cap"></span>
+            </figcaption>
+          </figure>
+          <button type="button" class="pack-view" data-pack="orig">Look closer</button>
+        </div>
+        <div class="pack-card" id="pack-close-wrap" data-pack="close" hidden>
+          <figure id="pack-close-fig" class="pack-choice" role="radio" tabindex="0" aria-checked="false" aria-label="Use cheaper" data-pack="close">
+            <img id="pack-close" alt="Cheaper">
+            <figcaption>
+              <strong id="pack-close-title">Cheaper</strong>
+              <span id="pack-close-cap"></span>
+            </figcaption>
+          </figure>
+          <button type="button" class="pack-view" data-pack="close">Look closer</button>
+        </div>
+        <div class="pack-card" id="pack-store-wrap" data-pack="store" hidden>
+          <figure id="pack-store-fig" class="pack-choice" role="radio" tabindex="0" aria-checked="false" aria-label="Use cheapest" data-pack="store">
+            <img id="pack-store" alt="Cheapest">
+            <figcaption>
+              <strong id="pack-store-title">Cheapest</strong>
+              <span id="pack-store-cap"></span>
+            </figcaption>
+          </figure>
+          <button type="button" class="pack-view" data-pack="store">Look closer</button>
+        </div>
+      </div>
+    </div>
+    <div id="fields" hidden>
+      <div class="field">
+        <label for="name">Artwork Name</label>
+        <input id="name" maxlength="48">
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <input id="description" maxlength="240">
+      </div>
+      <div class="field">
+        <label for="artist-name">Artist's Name <span class="quiet">(optional)</span></label>
+        <input id="artist-name" maxlength="48">
+      </div>
+      <div class="field">
+        <label for="artist-bps">Artist Royalty (%)</label>
+        <p class="help">Starts at the deployment default. Set it before you register. Zero is allowed.</p>
+        <input id="artist-bps" value="7.0">
+      </div>
+      <div class="field">
+        <label for="artist">Recipient</label>
+        <p class="help">Receives the artist royalty. Required when that royalty is above zero.</p>
+        <input id="artist" spellcheck="false">
+      </div>
+      <p id="dev" class="quiet"></p>
+    </div>
+        <button id="prepare" type="button">Prepare</button>
+        <div id="prep"></div>
+      </div>
+    </details>
+    <details id="upload-panel" class="step" hidden>
+      <summary id="upload-summary"><span class="step-no">2</span><span class="step-label">Upload</span></summary>
+      <div class="add-body">
+        <p id="plan-status"></p>
+        <p id="progress" title="How many pieces of this photograph are already stored."></p>
+        <div id="gas-quote"></div>
+        <p id="fee-note" aria-live="polite" title="The next contract waits while the base fee is high, then sends when it falls."></p>
+        <p id="share-note" class="help"></p>
+        <div id="path-choice"></div>
+        <p id="batch-gap" class="chunk-error" aria-live="polite"></p>
+        <div id="steps"></div>
+        <details id="agent" class="more" hidden>
+          <summary>Agent / script</summary>
+          <div class="copy-block">
+            <button id="copy-setup" type="button">Copy setup prompt (for artists without Foundry)</button>
+            <p class="help">Start here if your machine does not have Foundry yet. Paste the copied prompt into an agent that can use a terminal (e.g. Grok Build, Claude Code, etc.). The agent will install it and create a keystore named “onplate.”</p>
+          </div>
+          <div id="agent-actions"></div>
+        </details>
+        <details id="more" class="more">
+          <summary>Details</summary>
+          <div id="more-body">
+            <p id="size-long" class="help">The file is split into small pieces so it can be stored on Ethereum. Once every piece is stored, the photograph can be registered. Registering links those pieces into one finished photograph the factory can show. Pieces are bound to the wallet that stored them, so another account cannot register them. Until registration, the pieces exist on-chain but are not yet a complete plate. Register after storing so this wallet finishes the photograph. Clearing site data does not move the pieces; reconnect with the same wallet to resume.</p>
+            <p id="paths-label" class="paths-label" hidden>Two ways to upload</p>
+            <p id="path-wait" class="help" hidden>Choose Upload Manually or Upload with Agent above.</p>
+            <ul id="path-list" class="help paths" hidden>
+              <li id="path-manual" hidden>Recommended Manual Path: “Store every piece” sends the pieces of the photograph that are not stored yet, in groups. Each group is as many pieces as fit in one block, and the wallet confirms once for each group. Pieces this account already stored are skipped.</li>
+              <li id="path-one" hidden>Backup Manual Path: “Store piece” sends the next piece that is not stored yet, and the wallet confirms once.</li>
+              <li id="path-agent" hidden>Agent / script: This route uploads groups of pieces without a wallet confirmation for each group. The keystore on your computer signs them instead. Copy agent prompt downloads the photograph named in IMAGE, including a packed JPEG, and the thumbnail. The prompt tells the agent to check the photograph before anything is sent. That check does not unlock the keystore. When the check matches, the send asks for the password once in the terminal. If the agent cannot take that password, it gives you one command to copy into a new terminal window. Type the password there once. That send stores every remaining group and registers the photograph. If some pieces are already stored, the agent starts at the first missing one and does not send those again.</li>
+            </ul>
+            <div id="more-extra"></div>
+          </div>
+        </details>
+        <p id="upload-note" class="help"></p>
+        <p id="upload-error" class="step-error" role="alert"></p>
+      </div>
+    </details>
+    <details id="register-panel" class="step" hidden>
+      <summary id="register-summary"><span class="step-no">3</span><span class="step-label">Register</span></summary>
+      <div class="add-body">
+        <div id="register-steps"></div>
+        <p id="register-note" class="help"></p>
+        <p id="register-error" class="step-error" role="alert"></p>
+      </div>
+    </details>
+  </div>
+</section>
+<footer class="foot">
+  <div class="col">
+    <h2>Contracts</h2>
+    <div class="status">
+      <span class="status-pair">
+        <button id="factory-line" type="button"></button>
+        <button id="batch-line" type="button"></button>
+      </span>
+    </div>
+    <h2>Fallback Page</h2>
+    <p class="quiet">Downloads a local copy of the page stored on-chain.</p>
+    <div class="save-line">
+      <button id="save-page" type="button">Download the on-chain page</button>
+      <span id="save-note" aria-live="polite"></span>
+    </div>
+  </div>
+</footer>
+<dialog id="pack-dialog">
+  <p id="pack-dialog-title"></p>
+  <p id="pack-dialog-cap"></p>
+  <p class="help" id="pack-dialog-help">This is the width the photograph page uses. A file with fewer pixels looks softer here.</p>
+  <div class="row">
+    <button type="button" id="pack-dialog-use">Use this file</button>
+    <button type="button" id="pack-dialog-close">Close</button>
+  </div>
+  <div class="pack-stage">
+    <img id="pack-dialog-img" alt="">
+  </div>
+</dialog>
+<dialog id="abandon-dialog">
+  <p>Abandon this upload?</p>
+  <p>Any contracts already deployed stay on-chain, bound to the wallet that stored them. That wallet can still register them. Another wallet cannot. Abandon only forgets this browser’s saved plan.</p>
+  <p>This cannot be undone.</p>
+  <div class="row">
+    <button id="abandon-yes" class="danger" type="button">Abandon upload</button>
+    <button id="abandon-no" type="button">Cancel</button>
+  </div>
+</dialog>
+<dialog id="warn-dialog">
+  <p id="warn-text"></p>
+  <div class="row">
+    <button id="warn-yes" type="button">Continue</button>
+    <button id="warn-no" type="button">Cancel</button>
+  </div>
+</dialog>
+<script src="keccak.js"></script>
+<script src="png.js"></script>
+<script src="bytecode.js"></script>
+<script src="chain.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

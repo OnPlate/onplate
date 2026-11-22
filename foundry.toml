@@ -1,0 +1,30 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.37"
+optimizer = true
+optimizer_runs = 200
+# via IR is on so the photograph constructor's argument list compiles.
+# Optimizer 200, EVM osaka, Solidity 0.8.37.
+via_ir = true
+evm_version = "osaka"
+# Large photograph scripts copy piece bytes into the EVM. 1 GiB fits a 117-piece store group.
+memory_limit = 1073741824
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"
+]
+fs_permissions = [
+  { access = "read", path = "art" },
+  { access = "read", path = "web" },
+  { access = "read", path = "testing images" },
+  # The thumbnail is the file the browser saved, usually in Downloads.
+  # This read lets THUMB name that file. The script reads only the photograph and the thumbnail.
+  { access = "read", path = "/home/copper" },
+  # The upload script writes chunk addresses here. The file holds no key.
+  { access = "read-write", path = "broadcast" }
+]
+
+# Anvil, then Sepolia. Mainnet only after the words DEPLOY MAINNET.
+# The deploy scripts refuse chain id 1.
