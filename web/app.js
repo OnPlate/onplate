@@ -1870,8 +1870,8 @@
         var vaultLabel = el("label", "Vault address");
         var parkRow = row();
         panel.appendChild(el("p", rowData.meta.nominationAllowed
-          ? "Park this photograph at a vault address. Only that address can return it, and only to you. If they never return it, it stays there. After 30 days you can nominate one new artist."
-          : "Park this photograph at a vault address. Only that address can return it, and only to you. If they never return it, it stays there."));
+          ? "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came. After vaulting for 30 days you can name one new nominated artist to the platform."
+          : "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came."));
         vault.setAttribute("aria-label", "Vault address");
         vault.spellCheck = false;
         vault.addEventListener("keydown", function (ev) {
