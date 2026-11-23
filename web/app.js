@@ -1866,9 +1866,7 @@
       if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
         var vaultLabel = el("label", "Vault address");
         var parkRow = row();
-        panel.appendChild(el("p", rowData.meta.nominationAllowed
-          ? "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came. After vaulting for 30 days you can name one new nominated artist to the platform."
-          : "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came."));
+        panel.appendChild(el("p", parkExplain(rowData)));
         vault.setAttribute("aria-label", "Vault address");
         vault.spellCheck = false;
         vault.addEventListener("keydown", function (ev) {
@@ -2235,6 +2233,17 @@
     return hint;
   }
 
+  function parkExplain(rowData, vault) {
+    var text = vault
+      ? "Park this photograph at " + vault + "; it will act as a vault."
+      : "Park this photograph at an address of your choice; it will act as a vault.";
+    text += " That vault address can only do one thing with the photo; return it to the wallet from which it came.";
+    if (rowData && rowData.meta && rowData.meta.nominationAllowed) {
+      text += " After vaulting for 30 days you can name one new nominated artist to the platform.";
+    }
+    return text;
+  }
+
   // List, Buyer, and Park sit in Actions. Each one opens its fields in place.
   // A missing price or address uses the top note, not a line left under the button.
   function actSwitch(label, fill, startOpen) {
@@ -2323,7 +2332,7 @@
       return;
     }
     say("");
-    if (!window.confirm("Park this photograph at " + vault + "? Only that address can return it, and only to you. If they never return it, it stays there.")) return;
+    if (!window.confirm(parkExplain(rowData, vault))) return;
     gate(rowData).then(function (pin) {
       if (P.sameAddr(vault, pin.plate) || P.sameAddr(vault, pin.factory)) throw new Error("address");
       return P.send(chain, {
