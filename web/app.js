@@ -1781,7 +1781,6 @@
       actionSummary.setAttribute("aria-controls", actionBody.id);
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
-      if (rowData.meta.price > 0n || rowData.meta.buyer) actions.open = true;
       actionBody.appendChild(actSwitch("List", function (panel) {
         var priceLabel, listed, listRow = row();
         if (rowData.meta.price > 0n) {
@@ -1803,12 +1802,13 @@
           listRow.appendChild(enterHint());
         }
         panel.appendChild(listRow);
-      }, rowData.meta.price > 0n));
+      }));
       actionBody.appendChild(actSwitch("Buyer", function (panel) {
         var buyerLabel, allowed, buyerRow = row();
         if (rowData.meta.buyer) {
           allowed = el("span", rowData.meta.buyer);
-          allowed.className = "act-frozen";
+          allowed.className = "act-frozen act-addr";
+          buyerRow.classList.add("act-line");
           buyerRow.appendChild(allowed);
           buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
         } else {
@@ -1825,7 +1825,7 @@
           buyerRow.appendChild(enterHint());
         }
         panel.appendChild(buyerRow);
-      }, !!rowData.meta.buyer));
+      }));
       if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
         var vaultLabel = el("label", "Vault address");
         var parkRow = row();

@@ -497,10 +497,16 @@ section.plate .meta { max-width: 40rem; margin-top: 0.45rem; font-size: 0.86rem;
 .act-frozen {
   color: #6b6b6b;
   font-size: 0.95rem;
-  overflow-wrap: anywhere;
   align-self: center;
-  flex: 1 1 12rem;
-  max-width: 22rem;
+  white-space: nowrap;
+}
+.act-form .row.act-line {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.act-form .row.act-line .act-addr {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
 }
 .act-hint {
   color: #8a948c;
