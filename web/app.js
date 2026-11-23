@@ -2361,8 +2361,8 @@
       if (artistEl.dataset.touched !== "1") artistEl.value = bpsField(chainArtist);
       if (help) {
         help.textContent = allowed
-          ? "nominated artists " + sizeShort(cap)
-          : "open artists " + sizeShort(P.OPEN_MAX) + "; nominated artists " + sizeShort(cap);
+          ? "Maximum Size: nominated artists " + sizeShort(cap)
+          : "Maximum Size: open artists " + sizeShort(P.OPEN_MAX) + "; nominated artists " + sizeShort(cap);
       }
     }).catch(function () {
       if (P.sameAddr(P.factoryOf(chain), factory)) {
