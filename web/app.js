@@ -1119,7 +1119,9 @@
   }
 
   function studioNone() {
-    var p = el("p", "No photographs from this account yet.");
+    var p = el("p", hasCollection()
+      ? "No photographs minted from this account. Photographs you hold are under My Photographs in the OnPlate menu."
+      : "No photographs from this account yet.");
     p.className = "quiet reel-empty";
     return p;
   }
@@ -1779,6 +1781,7 @@
       actionSummary.setAttribute("aria-controls", actionBody.id);
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
+      if (rowData.meta.price > 0n || rowData.meta.buyer) actions.open = true;
       actionBody.appendChild(actSwitch("List", function (panel) {
         var priceLabel, listed, listRow = row();
         if (rowData.meta.price > 0n) {
@@ -1800,7 +1803,7 @@
           listRow.appendChild(enterHint());
         }
         panel.appendChild(listRow);
-      }));
+      }, rowData.meta.price > 0n));
       actionBody.appendChild(actSwitch("Buyer", function (panel) {
         var buyerLabel, allowed, buyerRow = row();
         if (rowData.meta.buyer) {
@@ -1822,7 +1825,7 @@
           buyerRow.appendChild(enterHint());
         }
         panel.appendChild(buyerRow);
-      }));
+      }, !!rowData.meta.buyer));
       if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
         var vaultLabel = el("label", "Vault address");
         var parkRow = row();
@@ -2198,7 +2201,7 @@
 
   // List, Buyer, and Park sit in Actions. Each one opens its fields in place.
   // A missing price or address uses the top note, not a line left under the button.
-  function actSwitch(label, fill) {
+  function actSwitch(label, fill, startOpen) {
     var wrap = el("div");
     var panel = el("div");
     var toggle = button(label, function () {
@@ -2208,9 +2211,9 @@
     });
     wrap.className = "act-switch";
     toggle.className = "act-open";
-    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-expanded", startOpen ? "true" : "false");
     panel.className = "act-form";
-    panel.hidden = true;
+    panel.hidden = !startOpen;
     fill(panel);
     wrap.appendChild(toggle);
     wrap.appendChild(panel);
