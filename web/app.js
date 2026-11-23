@@ -527,18 +527,8 @@
     }, 2500);
   }
 
-  function copyAddress(text) {
-    var node, holder, ok;
-    function done() {
-      flashAddressCopied(node);
-    }
-    node = document.getElementById("session-account");
-    if (!text) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fallback);
-      return;
-    }
-    fallback();
+  function copyText(text, ok) {
+    var holder, copied;
     function fallback() {
       holder = document.createElement("textarea");
       holder.value = text;
@@ -547,12 +537,30 @@
       holder.style.left = "-9999px";
       document.body.appendChild(holder);
       holder.select();
-      ok = false;
-      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      copied = false;
+      try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
       holder.remove();
-      if (ok) done();
+      if (copied) ok();
       else say("Select the address and copy it.");
     }
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fallback);
+      return;
+    }
+    fallback();
+  }
+
+  function copyAddress(text) {
+    copyText(text, function () {
+      flashAddressCopied(document.getElementById("session-account"));
+    });
+  }
+
+  function lineAddress(text) {
+    var i = String(text || "").indexOf("0x");
+    if (i < 0) return "";
+    return P.parseAddr(text.slice(i)) || "";
   }
 
   function ethText(wei) {
@@ -4253,8 +4261,8 @@
     }
     if (node.id === "account") return text === "Not connected" ? "no wallet is connected" : "connected wallet";
     if (node.id === "balance-line") return text ? "wallet balance" : "";
-    if (node.id === "factory-line") return text.indexOf("Factory:") === 0 ? "factory contract" : "";
-    if (node.id === "batch-line") return text ? "batch helper contract" : "";
+    if (node.id === "factory-line") return text.indexOf("Factory:") === 0 ? "factory contract copied" : "";
+    if (node.id === "batch-line") return text ? "batch helper contract copied" : "";
     return "";
   }
   function explainStatus(node) {
@@ -4285,7 +4293,14 @@
   var statusBox = document.querySelector(".status");
   if (statusBox) statusBox.addEventListener("click", function (ev) {
     var btn = ev.target.closest ? ev.target.closest("button") : null;
+    var addr;
     if (!btn || !statusBox.contains(btn)) return;
+    if (btn.id === "factory-line" || btn.id === "batch-line") {
+      addr = lineAddress(btn.dataset.value);
+      if (!addr) return;
+      copyText(addr, function () { explainStatus(btn); });
+      return;
+    }
     explainStatus(btn);
   });
 
