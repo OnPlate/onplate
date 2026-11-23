@@ -477,6 +477,14 @@ section.plate .meta { max-width: 40rem; margin-top: 0.45rem; font-size: 0.86rem;
 .plate-tools .meta { margin-top: 0.45rem; }
 .plate-tools .action-body { margin-top: 0.15rem; }
 .plate-tools .act-switch { margin-top: 0.4rem; }
+.action-body > button.solid {
+  display: inline-block;
+  margin: 0.55rem 0 0.35rem;
+}
+.action-body > button:not(.solid):not(.act-open) {
+  display: block;
+  margin: 0.55rem 0 0;
+}
 .plate-tools .meta[hidden],
 .plate-tools .action-body[hidden] { display: none; }
 .act-switch { margin: 0.95rem 0 0; max-width: 36rem; }

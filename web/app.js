@@ -1906,14 +1906,12 @@
       boughtNote.className = "plate-note";
       box.appendChild(boughtNote);
     }
-    if (armed(rowData) && mine() && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
+    var canBuy = armed(rowData) && mine() && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
       && P.sameAddr(rowData.meta.holder, rowData.meta.title) && !P.sameAddr(account, rowData.meta.title)
-      && (!rowData.meta.buyer || P.sameAddr(account, rowData.meta.buyer))) {
-      var buy = button("Buy", function () { onBuy(rowData); });
-      buy.className = "solid";
-      box.appendChild(buy);
-    }
-    if (armed(rowData) && owned(rowData) && !rowData.meta.parked) {
+      && (!rowData.meta.buyer || P.sameAddr(account, rowData.meta.buyer));
+    var canManage = armed(rowData) && owned(rowData) && !rowData.meta.parked;
+    var canWithdraw = armed(rowData) && mine() && claim > 0n;
+    if (canBuy || canManage || canWithdraw) {
       var buyer = el("input");
       var actions = el("details");
       var actionSummary = el("summary", "Actions");
@@ -1923,67 +1921,75 @@
       actionSummary.setAttribute("aria-controls", actionBody.id);
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
-      actionBody.appendChild(actSwitch("List", function (panel) {
-        var priceLabel, listed, listRow = row();
-        if (rowData.meta.price > 0n) {
-          listed = el("span", P.weiToEth(rowData.meta.price) + " ETH");
-          listed.className = "act-frozen";
-          listRow.appendChild(listed);
-          listRow.appendChild(button("Cancel", function () { onCancel(rowData); }));
-        } else {
-          priceLabel = el("label", "Price in ETH");
-          price.inputMode = "decimal";
-          price.setAttribute("aria-label", "Price in ETH");
-          price.addEventListener("keydown", function (ev) {
+      if (canBuy) {
+        var buy = button("Buy", function () { onBuy(rowData); });
+        buy.className = "solid";
+        actionBody.appendChild(buy);
+      }
+      if (canManage) {
+        actionBody.appendChild(actSwitch("List", function (panel) {
+          var priceLabel, listed, listRow = row();
+          if (rowData.meta.price > 0n) {
+            listed = el("span", P.weiToEth(rowData.meta.price) + " ETH");
+            listed.className = "act-frozen";
+            listRow.appendChild(listed);
+            listRow.appendChild(button("Cancel", function () { onCancel(rowData); }));
+          } else {
+            priceLabel = el("label", "Price in ETH");
+            price.inputMode = "decimal";
+            price.setAttribute("aria-label", "Price in ETH");
+            price.addEventListener("keydown", function (ev) {
+              if (ev.key !== "Enter") return;
+              ev.preventDefault();
+              onList(rowData, price.value);
+            });
+            priceLabel.appendChild(price);
+            listRow.appendChild(priceLabel);
+            listRow.appendChild(enterHint());
+          }
+          panel.appendChild(listRow);
+        }));
+        actionBody.appendChild(actSwitch("Buyer", function (panel) {
+          var buyerLabel, allowed, buyerRow = row();
+          if (rowData.meta.buyer) {
+            allowed = el("span", rowData.meta.buyer);
+            allowed.className = "act-frozen act-addr";
+            buyerRow.classList.add("act-line");
+            buyerRow.appendChild(allowed);
+            buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
+          } else {
+            buyerLabel = el("label", "Enter optional private buyer address");
+            buyer.setAttribute("aria-label", "Enter optional private buyer address");
+            buyer.spellCheck = false;
+            buyer.addEventListener("keydown", function (ev) {
+              if (ev.key !== "Enter") return;
+              ev.preventDefault();
+              onBuyer(rowData, buyer.value);
+            });
+            buyerLabel.appendChild(buyer);
+            buyerRow.appendChild(buyerLabel);
+            buyerRow.appendChild(enterHint());
+          }
+          panel.appendChild(buyerRow);
+        }));
+        if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
+          var vaultLabel = el("label", "Vault address");
+          var parkRow = row();
+          panel.appendChild(el("p", parkExplain(rowData)));
+          vault.setAttribute("aria-label", "Vault address");
+          vault.spellCheck = false;
+          vault.addEventListener("keydown", function (ev) {
             if (ev.key !== "Enter") return;
             ev.preventDefault();
-            onList(rowData, price.value);
+            onPark(rowData, vault.value);
           });
-          priceLabel.appendChild(price);
-          listRow.appendChild(priceLabel);
-          listRow.appendChild(enterHint());
-        }
-        panel.appendChild(listRow);
-      }));
-      actionBody.appendChild(actSwitch("Buyer", function (panel) {
-        var buyerLabel, allowed, buyerRow = row();
-        if (rowData.meta.buyer) {
-          allowed = el("span", rowData.meta.buyer);
-          allowed.className = "act-frozen act-addr";
-          buyerRow.classList.add("act-line");
-          buyerRow.appendChild(allowed);
-          buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
-        } else {
-          buyerLabel = el("label", "Enter optional private buyer address");
-          buyer.setAttribute("aria-label", "Enter optional private buyer address");
-          buyer.spellCheck = false;
-          buyer.addEventListener("keydown", function (ev) {
-            if (ev.key !== "Enter") return;
-            ev.preventDefault();
-            onBuyer(rowData, buyer.value);
-          });
-          buyerLabel.appendChild(buyer);
-          buyerRow.appendChild(buyerLabel);
-          buyerRow.appendChild(enterHint());
-        }
-        panel.appendChild(buyerRow);
-      }));
-      if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
-        var vaultLabel = el("label", "Vault address");
-        var parkRow = row();
-        panel.appendChild(el("p", parkExplain(rowData)));
-        vault.setAttribute("aria-label", "Vault address");
-        vault.spellCheck = false;
-        vault.addEventListener("keydown", function (ev) {
-          if (ev.key !== "Enter") return;
-          ev.preventDefault();
-          onPark(rowData, vault.value);
-        });
-        vaultLabel.appendChild(vault);
-        parkRow.appendChild(vaultLabel);
-        parkRow.appendChild(enterHint());
-        panel.appendChild(parkRow);
-      }));
+          vaultLabel.appendChild(vault);
+          parkRow.appendChild(vaultLabel);
+          parkRow.appendChild(enterHint());
+          panel.appendChild(parkRow);
+        }));
+      }
+      if (canWithdraw) actionBody.appendChild(button("Withdraw", function () { onWithdraw(rowData); }));
       menu.appendChild(actions);
       tools.appendChild(actionBody);
       tiePanel(actions, actionBody, false);
@@ -2005,7 +2011,6 @@
       nomRow.appendChild(button("Nominate", function () { onNominate(rowData, nominee.value); }));
       box.appendChild(nomRow);
     }
-    if (armed(rowData) && mine() && claim > 0n) box.appendChild(button("Withdraw", function () { onWithdraw(rowData); }));
     return box;
   }
 
