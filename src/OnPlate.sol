@@ -313,7 +313,7 @@ contract OnPlate is ERC721, ReentrancyGuard {
     }
 
     /// The vault sends the token home. Home is the title. There is no other destination.
-    /// The name stays until the title clears it.
+    /// The vault name is cleared so a later park can name a different address.
     function release() external nonReentrant {
         address box = mailbox;
         if (box == address(0) || msg.sender != box) revert Hook();
@@ -321,7 +321,9 @@ contract OnPlate is ERC721, ReentrancyGuard {
         _releasing = true;
         _update(title, TOKEN, address(0));
         _releasing = false;
+        mailbox = address(0);
         emit Released(box);
+        emit MailboxCleared();
     }
 
     /// Title clears the vault name. Only while the token is not parked.

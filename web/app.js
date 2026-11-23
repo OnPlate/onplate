@@ -1987,9 +1987,13 @@
           parkRow.appendChild(vaultLabel);
           parkRow.appendChild(enterHint());
           panel.appendChild(parkRow);
+          if (rowData.meta.mailbox && !rowData.meta.parked) {
+            panel.appendChild(el("p", "Named vault " + rowData.meta.mailbox + ". The photograph is not parked."));
+            panel.appendChild(button("Clear named vault", function () { onClear(rowData); }));
+          }
         }));
       }
-      if (canWithdraw) actionBody.appendChild(button("Withdraw", function () { onWithdraw(rowData); }));
+      if (canWithdraw) actionBody.appendChild(button("Withdraw Payments", function () { onWithdraw(rowData); }));
       menu.appendChild(actions);
       tools.appendChild(actionBody);
       tiePanel(actions, actionBody, false);
@@ -3626,7 +3630,8 @@
     "1. Install Foundry if it is not already installed.",
     "2. Create a new Foundry keystore named \"onplate\" (I will type the password when asked).",
     "3. Confirm that `forge --version` works and that the keystore exists.",
-    "4. Tell me when the machine is ready. Do not send any transactions yet.",
+    "4. When forge created the keystore, it printed a new address that starts with 0x. Show me that address. Then tell me to copy only that 0x address and send it in a direct message on X to @A_is_A so this keystore can be invited to upload. Do not send the password, the keystore file, a seed phrase, or the private key. Only the 0x address.",
+    "5. Tell me when the machine is ready. Do not send any transactions yet.",
     "",
     "Once the machine is ready, display this explanation to me:",
     "",
@@ -3634,7 +3639,7 @@
     "",
     "A keystore is a password-protected file on your computer that holds a private key. The password you just created unlocks that file. When the send runs, the upload asks for that password once so it can sign. The check run does not ask. The private key never leaves your machine.",
     "",
-    "The keystore is the wallet for this flow. When it was created, forge showed you a new address that starts with 0x. Keep that address. The upload uses it as SENDER without unlocking the keystore until the send. That address starts with zero ETH. Before you can upload, send the recommended amount of ETH shown on the page to that address from an exchange or another wallet. The upload will only spend the ETH that is already there."
+    "The keystore is the wallet for this flow. When it was created, forge showed you a new address that starts with 0x. Copy only that address and send it in a direct message on X to @A_is_A so you can be invited. Do not send the password, the keystore file, a seed phrase, or the private key. The upload uses that address as SENDER without unlocking the keystore until the send. That address starts with zero ETH. After you are invited, send the recommended amount of ETH shown on the page to that address from an exchange or another wallet. The upload will only spend the ETH that is already there."
   ].join("\n");
 
   // The page cannot run forge. This is the command the artist pastes into a terminal.
@@ -3712,7 +3717,7 @@
       "3. SENDER must be the 0x address of the keystore named \"onplate\". If you already know that address on this machine, use it. Do not run `cast wallet address` and do not decrypt the keystore to look it up. If you do not already know the address, ask me for the 0x address of the onplate keystore only. Then set SENDER to that address. Leave OWNER as written. OWNER is the wallet that will own the photograph. The keystore signs and pays, and the registration gives the photograph to OWNER in that same step. Leave ARTIST as written. ARTIST is only the royalty recipient. Do not ask me for OWNER or ARTIST. Do not set a shell variable named HOME to an Ethereum address. HOME is the Unix home directory.",
       "4. Run the node command once. It has no --broadcast, so the photograph is only checked and the password is not asked. Show me the content hash it prints near the start. If that hash matches CONFIRM, run the same command again with --broadcast added. You start that second run. I will type the password in the terminal once for that send. That one send stores every remaining group and registers the photograph. If the hash does not match, stop. If the send prints One step left, show me the command it printed. That is the next action, and the check already worked. I copy that command into a new terminal window.",
       "5. Do not use a password file to skip the prompt. Do not wrap this send in forge. Do not add a trace dump of the photograph. If the keystore is not at ~/.foundry/keystores/onplate, pass --keystore with the full path to that file. Do not set HOME to an address.",
-      "6. If the script says a photograph larger than the open tier needs a nomination, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue.",
+      "6. If the script says a photograph larger than the open tier needs a nomination, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue. If this keystore has not been invited yet, send only its 0x address in a direct message on X to @A_is_A. Do not send the password, the keystore file, or the private key.",
       "7. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
       "8. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
       "9. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",
@@ -4011,12 +4016,14 @@
     }
     line = row();
     manualBtn = button("Upload Manually", function () {
+      if (job.chunks && job.chunks.length && !remainingPieces()) return;
       uploadPath = "manual";
       paintSteps();
     }, recommendManual());
     manualBtn.id = "choose-manual";
     agentBtn = button("Upload with Agent", function () {
       var panel = document.getElementById("agent");
+      if (job.chunks && job.chunks.length && !remainingPieces()) return;
       uploadPath = "agent";
       if (panel) panel.open = true;
       paintSteps();
@@ -4024,6 +4031,12 @@
     agentBtn.id = "choose-agent";
     manualBtn.setAttribute("aria-pressed", uploadPath === "manual" ? "true" : "false");
     agentBtn.setAttribute("aria-pressed", uploadPath === "agent" ? "true" : "false");
+    if (job.chunks && job.chunks.length && !remainingPieces()) {
+      manualBtn.disabled = true;
+      agentBtn.disabled = true;
+      manualBtn.title = "This photograph is already stored.";
+      agentBtn.title = "This photograph is already stored.";
+    }
     line.appendChild(manualBtn);
     line.appendChild(agentBtn);
     if (host) host.appendChild(line);

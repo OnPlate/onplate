@@ -224,6 +224,11 @@ label { display: block; margin: 1.45rem 0; color: #4e6356; font-size: 0.92rem; }
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
+#path-choice button[disabled] {
+  text-decoration: none;
+  opacity: 0.4;
+  cursor: default;
+}
 #agent[hidden],
 #path-list[hidden],
 #path-manual[hidden],

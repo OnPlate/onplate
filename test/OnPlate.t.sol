@@ -880,7 +880,7 @@ contract OnPlateTest is Test {
         plate.release();
         assertEq(plate.ownerOf(1), owner);
         assertEq(plate.title(), owner);
-        assertEq(plate.mailbox(), vault);
+        assertEq(plate.mailbox(), address(0));
         assertFalse(plate.parked());
         assertEq(plate.listedPrice(), 0);
         assertEq(plate.allowedBuyer(), address(0));
@@ -942,7 +942,7 @@ contract OnPlateTest is Test {
         plate.setMailbox(vault);
         vm.prank(vault);
         plate.release();
-        assertEq(plate.mailbox(), vault);
+        assertEq(plate.mailbox(), address(0));
         vm.prank(owner);
         plate.list(1 ether);
         vm.prank(buyer);
@@ -951,6 +951,26 @@ contract OnPlateTest is Test {
         assertEq(plate.title(), buyer);
         assertEq(plate.mailbox(), address(0));
         assertFalse(plate.parked());
+    }
+
+    function test_releaseClearsMailboxSoANewVaultCanBeNamed() public {
+        address other = makeAddr("otherVault");
+        OnPlate plate = _add(owner, 0, 0, owner);
+        vm.prank(owner);
+        plate.setMailbox(vault);
+        vm.expectEmit(true, false, false, true, address(plate));
+        emit OnPlate.Released(vault);
+        vm.expectEmit(false, false, false, true, address(plate));
+        emit OnPlate.MailboxCleared();
+        vm.prank(vault);
+        plate.release();
+        assertEq(plate.mailbox(), address(0));
+        assertFalse(plate.parked());
+        vm.prank(owner);
+        plate.setMailbox(other);
+        assertEq(plate.ownerOf(1), other);
+        assertEq(plate.mailbox(), other);
+        assertTrue(plate.parked());
     }
 
     function test_twoPhotosDoNotShareAVault() public {

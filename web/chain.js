@@ -18,6 +18,8 @@
   var STORE_GROUP_MAX = 16;
   var GAS_PER_CHUNK = 4115033n;
   var GAS_PER_CHUNK_SEPOLIA = 28730342n;
+  // Public Sepolia nodes currently quote ~16 wei. MetaMask still bids about 1.5 gwei.
+  var FLOOR_WEI_PER_GAS = 1500000000n;
   var ENTROPY_MIN = 4;
   var CHAINS = {
     mainnet: [
@@ -648,17 +650,19 @@
     return { about: ethUp(cost, places), keep: ethUp(keep, places) };
   }
 
-  // The higher of the node's suggested price and the latest base fee.
+  // The higher of the node's suggested price, the latest base fee, and 1.5 gwei.
   // A suggested price under the base fee cannot pay for the transaction.
+  // Sepolia public nodes currently return dust (~16 wei); wallets still bid ~1.5 gwei.
   function quotedGasPrice(url) {
     return rpc(url, "eth_gasPrice", []).then(function (hex) {
       var price = u256(hex);
       if (price <= 0n) throw new Error("gasprice");
       return rpc(url, "eth_getBlockByNumber", ["latest", false]).then(function (block) {
         var base = block && block.baseFeePerGas != null ? u256(block.baseFeePerGas) : 0n;
-        return base > price ? base : price;
+        var quoted = base > price ? base : price;
+        return quoted < FLOOR_WEI_PER_GAS ? FLOOR_WEI_PER_GAS : quoted;
       }).catch(function () {
-        return price;
+        return price < FLOOR_WEI_PER_GAS ? FLOOR_WEI_PER_GAS : price;
       });
     });
   }
