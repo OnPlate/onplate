@@ -1,6 +1,6 @@
 # OnPlate
 
-OnPlate is a factory of one-token photographs. Each photograph is its own ERC-721. The symbol is PLATE. The token id is 1. The full file sits in one or more chunk contracts on the same chain. The photograph contract stores the keccak256 of that file, the chunk list, the royalty terms, a small PNG, and the vault state.
+OnPlate is a factory for 1/1 on-chain photographs. Each photograph is its own ERC-721. The symbol is PLATE. The token id is 1. The full file sits in one or more chunk contracts on the same chain. Nothing in that file is stored on IPFS or a private server. The photograph contract stores the keccak256 of that file, the chunk list, the royalty terms, a small PNG, and the vault state.
 
 The factory starts empty. The current owner can add a photograph of up to 1,150 pieces. An address on the upload whitelist can do the same, including an address that received a nomination. Any other address can add a photograph of at most 4 pieces. Four full pieces are 73,728 bytes. Five full pieces need 18,432,000 gas of code deposit alone on the Osaka schedule, which is over the 16,777,216 gas cap. A photograph registered on that open tier cannot nominate. A later whitelist does not change a plate that was already registered.
 
