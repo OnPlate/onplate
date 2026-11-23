@@ -1327,19 +1327,35 @@
     return p;
   }
 
-  // Follows and favorites stay in this browser. The chain never hears about them.
+  // Follows and favorites stay in this browser, for the connected account.
+  // The chain never hears about them.
   function hallStoreKey(kind) {
-    return "onplate-hall-" + kind + ":" + chain;
+    var who = P.parseAddr(account);
+    if (!who) return "";
+    return "onplate-hall-" + kind + ":" + chain + ":" + who.toLowerCase();
   }
 
   function hallMarks(kind) {
+    var key = hallStoreKey(kind);
     var raw, parsed, out, i, addr;
     out = [];
-    try { raw = JSON.parse(localStorage.getItem(hallStoreKey(kind)) || "[]"); }
+    if (!key) return out;
+    try { raw = localStorage.getItem(key); }
     catch (e) { return out; }
-    if (!Array.isArray(raw)) return out;
-    for (i = 0; i < raw.length && out.length < 200; i++) {
-      addr = P.parseAddr(raw[i]);
+    if (raw == null) {
+      try { raw = localStorage.getItem("onplate-hall-" + kind + ":" + chain); }
+      catch (e) { raw = null; }
+      if (raw != null) {
+        try { localStorage.setItem(key, raw); }
+        catch (e) {}
+      }
+    }
+    if (!raw) return out;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { return out; }
+    if (!Array.isArray(parsed)) return out;
+    for (i = 0; i < parsed.length && out.length < 200; i++) {
+      addr = P.parseAddr(parsed[i]);
       if (!addr || zero(addr)) continue;
       if (out.some(function (item) { return P.sameAddr(item, addr); })) continue;
       out.push(addr);
@@ -1356,8 +1372,9 @@
 
   function hallToggle(kind, addr) {
     var parsed = P.parseAddr(addr);
+    var key = hallStoreKey(kind);
     var list, next, i, on, saved, cleared, url;
-    if (!parsed || zero(parsed)) return;
+    if (!key || !parsed || zero(parsed)) return;
     list = hallMarks(kind);
     on = false;
     next = [];
@@ -1367,7 +1384,7 @@
     }
     if (!on && next.length < 200) next.push(parsed);
     saved = true;
-    try { localStorage.setItem(hallStoreKey(kind), JSON.stringify(next)); }
+    try { localStorage.setItem(key, JSON.stringify(next)); }
     catch (e) { saved = false; }
     if (!saved) return;
     cleared = false;
@@ -1563,7 +1580,7 @@
   }
 
   function hallNote() {
-    var p = el("p", "Follows and favorites stay in this browser. They are not written on-chain.");
+    var p = el("p", "Follows and favorites stay in this browser for the connected account. They are not written on-chain.");
     p.className = "quiet hall-note";
     return p;
   }
