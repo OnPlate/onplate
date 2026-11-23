@@ -566,7 +566,8 @@ p { overflow-wrap: anywhere; }
   color: #6e2424;
   font-weight: 700;
 }
-section.plate > button.danger {
+section.plate > button.danger,
+section.plate > button.solid {
   display: inline-block;
   margin: 0.9rem 0.8rem 0 0;
 }

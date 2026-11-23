@@ -746,6 +746,14 @@
     }
   }
 
+  function saleOn() {
+    try {
+      return new URLSearchParams(window.location.search).get("sale") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
   function setFavorites(on) {
     var url, params, q;
     if (!viewing) {
@@ -753,6 +761,7 @@
       if (on) {
         params.set("favorites", "1");
         params.delete("mine");
+        params.delete("sale");
       } else params.delete("favorites");
       q = params.toString();
       window.location.assign(pages().view + (q ? "?" + q : ""));
@@ -762,6 +771,7 @@
     if (on) {
       url.searchParams.set("favorites", "1");
       url.searchParams.delete("mine");
+      url.searchParams.delete("sale");
     } else url.searchParams.delete("favorites");
     history.replaceState(null, "", url.toString());
     closeArtists();
@@ -777,6 +787,7 @@
         params.set("mine", "1");
         params.delete("favorites");
         params.delete("artist");
+        params.delete("sale");
       } else params.delete("mine");
       q = params.toString();
       window.location.assign(pages().view + (q ? "?" + q : ""));
@@ -787,7 +798,35 @@
       url.searchParams.set("mine", "1");
       url.searchParams.delete("favorites");
       url.searchParams.delete("artist");
+      url.searchParams.delete("sale");
     } else url.searchParams.delete("mine");
+    history.replaceState(null, "", url.toString());
+    closeArtists();
+    paintArtists();
+    showFiltered();
+  }
+
+  function setSale(on) {
+    var url, params, q;
+    if (!viewing) {
+      params = new URLSearchParams(window.location.search);
+      if (on) {
+        params.set("sale", "1");
+        params.delete("favorites");
+        params.delete("artist");
+        params.delete("mine");
+      } else params.delete("sale");
+      q = params.toString();
+      window.location.assign(pages().view + (q ? "?" + q : ""));
+      return;
+    }
+    url = new URL(window.location.href);
+    if (on) {
+      url.searchParams.set("sale", "1");
+      url.searchParams.delete("favorites");
+      url.searchParams.delete("artist");
+      url.searchParams.delete("mine");
+    } else url.searchParams.delete("sale");
     history.replaceState(null, "", url.toString());
     closeArtists();
     paintArtists();
@@ -804,6 +843,7 @@
     url.searchParams.delete("artist");
     url.searchParams.delete("favorites");
     url.searchParams.delete("mine");
+    url.searchParams.delete("sale");
     history.replaceState(null, "", url.toString());
     closeArtists();
     paintArtists();
@@ -914,6 +954,7 @@
       // A name shows that artist's photographs, including ones that are not favorited.
       url.searchParams.delete("favorites");
       url.searchParams.delete("mine");
+      url.searchParams.delete("sale");
     } else url.searchParams.delete("artist");
     history.replaceState(null, "", url.toString());
     closeArtists();
@@ -948,10 +989,12 @@
       params.set("artist", addr);
       params.delete("favorites");
       params.delete("mine");
+      params.delete("sale");
     } else {
       params.delete("artist");
       params.delete("favorites");
       params.delete("mine");
+      params.delete("sale");
     }
     q = params.toString();
     return pages().view + (q ? "?" + q : "");
@@ -1020,6 +1063,25 @@
     return false;
   }
 
+  // Listed, in the title holder's hand, and this account may buy it.
+  // A named buyer is only for that address. The title holder is not a buyer here.
+  function forSale(rowData) {
+    var meta = rowData && rowData.meta;
+    if (!meta || !meta.printed || meta.parked || !(meta.price > 0n)) return false;
+    if (!meta.holder || !P.sameAddr(meta.holder, meta.title)) return false;
+    if (mine() && P.sameAddr(account, meta.title)) return false;
+    if (meta.buyer && !zero(meta.buyer)) return mine() && P.sameAddr(account, meta.buyer);
+    return true;
+  }
+
+  function hasForSale() {
+    var i;
+    for (i = 0; i < loaded.length; i++) {
+      if (forSale(loaded[i])) return true;
+    }
+    return false;
+  }
+
   function showFiltered() {
     var want = artistParam();
     var shown = [];
@@ -1035,6 +1097,8 @@
         if (!uploadedByMe(rowData)) continue;
       } else if (collectionOn()) {
         if (!collectedByMe(rowData)) continue;
+      } else if (saleOn()) {
+        if (!forSale(rowData)) continue;
       } else {
         if (!matchesArtist(rowData, want)) continue;
         if (favoritesOn() && !hallHas("fav", rowData.plate)) continue;
@@ -1063,7 +1127,7 @@
     var menu = document.getElementById("artist-menu");
     var want = artistParam();
     var people, i, choice, filters, group, toggle, list;
-    var favs, collected, showAll;
+    var favs, collected, selling, showAll;
     if (!menu) return;
     menu.replaceChildren();
     var add = document.createElement("a");
@@ -1076,9 +1140,10 @@
     people = artistsOf(loaded);
     favs = hallMarks("fav");
     collected = hasCollection();
-    showAll = viewing && (want || favoritesOn() || collectionOn());
-    if (!people.length && !favs.length && !collected && !showAll) return;
-    if (showAll || favs.length || collected) {
+    selling = hasForSale();
+    showAll = viewing && (want || favoritesOn() || collectionOn() || saleOn());
+    if (!people.length && !favs.length && !collected && !selling && !showAll) return;
+    if (showAll || favs.length || collected || selling) {
       filters = el("div");
       filters.className = "people";
       // The view page offers All photographs while a filter is on. The add page does not.
@@ -1111,6 +1176,17 @@
         choice.addEventListener("click", function (ev) {
           ev.stopPropagation();
           setCollection(!collectionOn());
+        });
+        filters.appendChild(choice);
+      }
+      if (selling) {
+        choice = el("button");
+        choice.type = "button";
+        choice.textContent = "For Sale";
+        if (saleOn()) choice.setAttribute("aria-current", "true");
+        choice.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          setSale(!saleOn());
         });
         filters.appendChild(choice);
       }
@@ -1238,6 +1314,7 @@
       return null;
     }
     if (collectionOn()) text = "No photographs in this collection.";
+    else if (saleOn()) text = "No photographs for sale.";
     else if (favoritesOn() && artistParam()) text = "No favorited photographs from this artist.";
     else if (favoritesOn()) text = "No favorited photographs.";
     else if (artistParam()) text = "No photographs from this artist.";
@@ -1567,6 +1644,7 @@
       if (hallLens === "following") empty = "Follow an artist to gather their photographs here.";
       else if (hallLens === "favorites") empty = "Favorite a photograph to keep it here.";
       else if (!list.length && !loaded.length) empty = "No photographs yet.";
+      else if (saleOn()) empty = "No photographs for sale.";
       else if (favoritesOn() && artistParam()) empty = "No favorited photographs from this artist.";
       else if (favoritesOn()) empty = "No favorited photographs.";
       else empty = "No photographs from this artist.";
@@ -1806,7 +1884,9 @@
     if (armed(rowData) && mine() && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
       && P.sameAddr(rowData.meta.holder, rowData.meta.title) && !P.sameAddr(account, rowData.meta.title)
       && (!rowData.meta.buyer || P.sameAddr(account, rowData.meta.buyer))) {
-      box.appendChild(button("Buy", function () { onBuy(rowData); }));
+      var buy = button("Buy", function () { onBuy(rowData); });
+      buy.className = "solid";
+      box.appendChild(buy);
     }
     if (armed(rowData) && owned(rowData) && !rowData.meta.parked) {
       var buyer = el("input");
