@@ -338,10 +338,11 @@
 
   function chainOf() {
     try {
-      var q = new URLSearchParams(root.location.search).get("chain") || "mainnet";
+      var q = new URLSearchParams(root.location.search).get("chain");
       if (q === "mainnet" || q === "sepolia" || q === "anvil") return q;
     } catch (e) {}
-    return "mainnet";
+    if (FACTORIES.mainnet) return "mainnet";
+    return "sepolia";
   }
 
   function factoryOf(chain) {

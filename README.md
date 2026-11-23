@@ -32,6 +32,8 @@ Sepolia is live. `script/DeploySepolia.s.sol` deploys the plate creator, the boo
 
 ## The page
 
+The hosted studio is https://onplate.github.io/onplate/. With no chain in the address it uses Sepolia while the mainnet factory is empty. A local copy is `http://127.0.0.1:8765/`. Anvil still needs `?chain=anvil&factory=0x...` on localhost.
+
 The fallback page is one HTML file, at most 18,432 bytes, stored as chunk bytecode.
 
 ```bash
@@ -95,7 +97,7 @@ The creation data is the bytecode from `web/bytecode.js` (`node script/bytecode.
 
 Name is 1 to 48 characters. Description is 0 to 240. The allowed characters are printable ASCII except `"`, `\`, `<`, `>`, and `&`. The content hash is the keccak256 of the file bytes in order. The contract stores the hash the artist sends. A reader reassembles the chunks and checks the hash.
 
-On Anvil the page address is passed as `?chain=anvil&factory=0x...` and only while the page is opened on `localhost` or `127.0.0.1`. On Sepolia the factory address is in `web/chain.js`. A query string cannot replace it. On mainnet that field stays empty until a deployment is written there.
+On Anvil the page address is passed as `?chain=anvil&factory=0x...` and only while the page is opened on `localhost` or `127.0.0.1`. The public studio is https://onplate.github.io/onplate/. On Sepolia the factory address is in `web/chain.js`. A query string cannot replace it. On mainnet that field stays empty until a deployment is written there.
 
 ## Royalties
 
