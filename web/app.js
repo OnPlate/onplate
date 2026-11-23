@@ -2360,9 +2360,7 @@
       }
       if (artistEl.dataset.touched !== "1") artistEl.value = bpsField(chainArtist);
       if (help) {
-        help.textContent = allowed
-          ? "Maximum Size: nominated artists " + sizeShort(cap)
-          : "Maximum Size: open artists " + sizeShort(P.OPEN_MAX) + "; nominated artists " + sizeShort(cap);
+        help.textContent = "Maximum Size: " + sizeShort(allowed ? cap : P.OPEN_MAX);
       }
     }).catch(function () {
       if (P.sameAddr(P.factoryOf(chain), factory)) {
