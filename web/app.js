@@ -122,16 +122,36 @@
   // still on screen makes the browser paint the alt text in the photograph's place.
   var keptUrls = null;
 
+  function saveCopy(bytes, type, name) {
+    var blob, link, file;
+    if (!bytes || !bytes.length) return;
+    file = safeFileName(name);
+    if (!file) file = type === "image/png" ? "photograph.png" : (type === "image/jpeg" ? "photograph.jpg" : "photograph");
+    blob = new Blob([bytes], { type: type || "application/octet-stream" });
+    link = el("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = file;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { drop(link.href); }, 1000);
+  }
+
   function showBytes(parent, bytes, type, alt, className, reuseKey) {
     var img, url;
     if (!bytes || !type) return;
     img = el("img");
     img.alt = alt || "";
     img.className = className || "";
-    if (className === "thumb") img.tabIndex = 0;
     url = reuseKey && keptUrls ? keptUrls[reuseKey] : "";
     if (!url) url = URL.createObjectURL(new Blob([bytes], { type: type }));
     img.src = url;
+    if (className === "thumb") {
+      img.title = "Save a copy";
+      img.addEventListener("click", function () {
+        saveCopy(bytes, type, type === "image/png" ? "on-chain-thumbnail.png" : "on-chain-thumbnail");
+      });
+    }
     parent.appendChild(img);
     return url;
   }
@@ -717,19 +737,56 @@
     }
   }
 
+  function collectionOn() {
+    try {
+      return new URLSearchParams(window.location.search).get("mine") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
   function setFavorites(on) {
     var url, params, q;
     if (!viewing) {
       params = new URLSearchParams(window.location.search);
-      if (on) params.set("favorites", "1");
-      else params.delete("favorites");
+      if (on) {
+        params.set("favorites", "1");
+        params.delete("mine");
+      } else params.delete("favorites");
       q = params.toString();
       window.location.assign(pages().view + (q ? "?" + q : ""));
       return;
     }
     url = new URL(window.location.href);
-    if (on) url.searchParams.set("favorites", "1");
-    else url.searchParams.delete("favorites");
+    if (on) {
+      url.searchParams.set("favorites", "1");
+      url.searchParams.delete("mine");
+    } else url.searchParams.delete("favorites");
+    history.replaceState(null, "", url.toString());
+    closeArtists();
+    paintArtists();
+    showFiltered();
+  }
+
+  function setCollection(on) {
+    var url, params, q;
+    if (!viewing) {
+      params = new URLSearchParams(window.location.search);
+      if (on) {
+        params.set("mine", "1");
+        params.delete("favorites");
+        params.delete("artist");
+      } else params.delete("mine");
+      q = params.toString();
+      window.location.assign(pages().view + (q ? "?" + q : ""));
+      return;
+    }
+    url = new URL(window.location.href);
+    if (on) {
+      url.searchParams.set("mine", "1");
+      url.searchParams.delete("favorites");
+      url.searchParams.delete("artist");
+    } else url.searchParams.delete("mine");
     history.replaceState(null, "", url.toString());
     closeArtists();
     paintArtists();
@@ -745,6 +802,7 @@
     url = new URL(window.location.href);
     url.searchParams.delete("artist");
     url.searchParams.delete("favorites");
+    url.searchParams.delete("mine");
     history.replaceState(null, "", url.toString());
     closeArtists();
     paintArtists();
@@ -778,7 +836,7 @@
   }
 
   // Distinct on-chain names for this address, oldest plate first.
-  // Grouping is by address. Each plate keeps the name stored on that plate.
+  // Grouping is the minting artist. A later title holder does not inherit the name.
   function namesOnChainFor(addr) {
     var parsed = P.parseAddr(addr);
     var seen = {};
@@ -787,9 +845,8 @@
     if (!parsed) return [];
     for (i = 0; i < loaded.length; i++) {
       row = loaded[i];
-      if (!row || !row.meta) continue;
-      if (!P.sameAddr(row.meta.title, parsed) && !P.sameAddr(row.meta.artistRecipient, parsed)) continue;
-      name = row.meta.artistName || "";
+      if (!P.sameAddr(minterOf(row), parsed)) continue;
+      name = row.meta && row.meta.artistName || "";
       if (!name) continue;
       key = name.toLowerCase();
       if (seen[key]) continue;
@@ -855,6 +912,7 @@
       url.searchParams.set("artist", addr);
       // A name shows that artist's photographs, including ones that are not favorited.
       url.searchParams.delete("favorites");
+      url.searchParams.delete("mine");
     } else url.searchParams.delete("artist");
     history.replaceState(null, "", url.toString());
     closeArtists();
@@ -888,9 +946,11 @@
     if (addr) {
       params.set("artist", addr);
       params.delete("favorites");
+      params.delete("mine");
     } else {
       params.delete("artist");
       params.delete("favorites");
+      params.delete("mine");
     }
     q = params.toString();
     return pages().view + (q ? "?" + q : "");
@@ -913,28 +973,50 @@
       out.push(parsed);
     }
     (list || []).forEach(function (rowData) {
-      if (!rowData || !rowData.meta) return;
-      add(rowData.meta.artistRecipient);
-      add(rowData.meta.title);
+      add(minterOf(rowData));
     });
     return out;
   }
 
   function matchesArtist(rowData, want) {
-    if (!want || !rowData || !rowData.meta) return !want;
-    return P.sameAddr(rowData.meta.artistRecipient, want) || P.sameAddr(rowData.meta.title, want);
+    if (!want) return true;
+    return P.sameAddr(minterOf(rowData), want);
   }
 
-  // The Add page shows a plate the connected account already has a part in.
-  // That part is the registrar, the title, or the royalty recipient. All three are
-  // already on the plate, so a keystore upload stays with this account on any browser.
+  // PhotoAdded records the minting artist. artistRecipient is the fallback
+  // when that log has not been read yet. Title is the current holder and is never
+  // treated as the artist.
+  function minterOf(rowData) {
+    var artist;
+    if (!rowData) return "";
+    artist = P.parseAddr(rowData.uploader);
+    if (artist && !zero(artist)) return artist;
+    if (!rowData.meta) return "";
+    artist = P.parseAddr(rowData.meta.artistRecipient);
+    if (artist && !zero(artist)) return artist;
+    return "";
+  }
+
+  // The Add page shows photographs this account minted.
   function uploadedByMe(rowData) {
-    var meta;
+    if (!mine() || !rowData) return false;
+    return P.sameAddr(minterOf(rowData), account);
+  }
+
+  // A collected photograph is one this account holds title to and did not mint.
+  function collectedByMe(rowData) {
     if (!mine() || !rowData || !rowData.meta) return false;
-    meta = rowData.meta;
-    if (P.sameAddr(rowData.uploader, account)) return true;
-    if (P.sameAddr(meta.title, account)) return true;
-    return P.sameAddr(meta.artistRecipient, account);
+    if (!P.sameAddr(rowData.meta.title, account)) return false;
+    return !P.sameAddr(minterOf(rowData), account);
+  }
+
+  function hasCollection() {
+    var i;
+    if (!mine()) return false;
+    for (i = 0; i < loaded.length; i++) {
+      if (collectedByMe(loaded[i])) return true;
+    }
+    return false;
   }
 
   function showFiltered() {
@@ -950,6 +1032,8 @@
       rowData = loaded[i];
       if (!viewing) {
         if (!uploadedByMe(rowData)) continue;
+      } else if (collectionOn()) {
+        if (!collectedByMe(rowData)) continue;
       } else {
         if (!matchesArtist(rowData, want)) continue;
         if (favoritesOn() && !hallHas("fav", rowData.plate)) continue;
@@ -976,11 +1060,12 @@
     menu.appendChild(add);
     people = artistsOf(loaded);
     var favs = hallMarks("fav");
-    if (!people.length && !favs.length) return;
+    var collected = hasCollection();
+    if (!people.length && !favs.length && !collected) return;
     group = el("div");
     group.className = "people";
     // The view page offers All photographs while a filter is on. The add page does not.
-    if (viewing && (want || favoritesOn())) {
+    if (viewing && (want || favoritesOn() || collectionOn())) {
       choice = el("button");
       choice.type = "button";
       choice.textContent = "All photographs";
@@ -998,6 +1083,17 @@
       choice.addEventListener("click", function (ev) {
         ev.stopPropagation();
         setFavorites(!favoritesOn());
+      });
+      group.appendChild(choice);
+    }
+    if (collected) {
+      choice = el("button");
+      choice.type = "button";
+      choice.textContent = "My Photographs";
+      if (collectionOn()) choice.setAttribute("aria-current", "true");
+      choice.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        setCollection(!collectionOn());
       });
       group.appendChild(choice);
     }
@@ -1114,7 +1210,8 @@
       }
       return null;
     }
-    if (favoritesOn() && artistParam()) text = "No favorited photographs from this artist.";
+    if (collectionOn()) text = "No photographs in this collection.";
+    else if (favoritesOn() && artistParam()) text = "No favorited photographs from this artist.";
     else if (favoritesOn()) text = "No favorited photographs.";
     else if (artistParam()) text = "No photographs from this artist.";
     else return null;
@@ -1241,11 +1338,7 @@
   }
 
   function plateArtist(rowData) {
-    var artist;
-    if (!rowData || !rowData.meta) return "";
-    artist = P.parseAddr(rowData.meta.artistRecipient);
-    if (artist && !zero(artist)) return artist;
-    return P.parseAddr(rowData.meta.title) || "";
+    return minterOf(rowData);
   }
 
   function pieceArtistLabel(rowData) {
@@ -1632,11 +1725,6 @@
       box.appendChild(title);
     }
     if (rowData.meta.description) box.appendChild(el("p", rowData.meta.description));
-    if (rowData.meta.nominationAllowed && rowData.meta.vaultedSince > 0n && clockStillRunning(rowData.meta, chainNow)) {
-      var waiting = el("p", "Currently in nomination status. Reload after 30 days to nominate.");
-      waiting.className = "quiet";
-      box.appendChild(waiting);
-    }
     if (rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
       details.appendChild(el("p", "On-chain thumbnail"));
       urls[rowData.plate + ":thumb"] = showBytes(details, rowData.meta.thumbnail, "image/png", "On-chain thumbnail", "thumb", rowData.plate + ":thumb");
@@ -1657,7 +1745,7 @@
     } else {
       fact(facts, "Listing", "Not listed.");
     }
-    if (rowData.meta.parked) fact(facts, "Parked", "with " + (rowData.meta.mailbox || ""));
+    if (rowData.meta.parked) fact(facts, "Parked", "at " + (rowData.meta.mailbox || ""));
     else if (rowData.meta.mailbox) fact(facts, "Vault", "named " + rowData.meta.mailbox + ". The photograph is not parked.");
     if (rowData.meta.buyer) fact(facts, "Buyer", "Only " + rowData.meta.buyer + " may buy.");
     if (claim > 0n) fact(facts, "Withdrawable", P.weiToEth(claim) + " ETH");
@@ -1676,7 +1764,7 @@
     tools.appendChild(details);
     box.appendChild(tools);
     tiePanel(record, details, true);
-    if (armed(rowData) && mine() && rowData.hashOk && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
+    if (armed(rowData) && mine() && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
       && P.sameAddr(rowData.meta.holder, rowData.meta.title) && !P.sameAddr(account, rowData.meta.title)
       && (!rowData.meta.buyer || P.sameAddr(account, rowData.meta.buyer))) {
       box.appendChild(button("Buy", function () { onBuy(rowData); }));
@@ -1692,41 +1780,55 @@
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
       actionBody.appendChild(actSwitch("List", function (panel) {
-        var priceLabel = el("label", "Price in ETH");
-        var listRow = row();
-        price.inputMode = "decimal";
-        price.setAttribute("aria-label", "Price in ETH");
-        price.addEventListener("keydown", function (ev) {
-          if (ev.key !== "Enter") return;
-          ev.preventDefault();
-          onList(rowData, price.value);
-        });
-        priceLabel.appendChild(price);
-        listRow.appendChild(priceLabel);
-        if (rowData.meta.price > 0n) listRow.appendChild(button("Cancel", function () { onCancel(rowData); }));
+        var priceLabel, listed, listRow = row();
+        if (rowData.meta.price > 0n) {
+          listed = el("span", P.weiToEth(rowData.meta.price) + " ETH");
+          listed.className = "act-frozen";
+          listRow.appendChild(listed);
+          listRow.appendChild(button("Cancel", function () { onCancel(rowData); }));
+        } else {
+          priceLabel = el("label", "Price in ETH");
+          price.inputMode = "decimal";
+          price.setAttribute("aria-label", "Price in ETH");
+          price.addEventListener("keydown", function (ev) {
+            if (ev.key !== "Enter") return;
+            ev.preventDefault();
+            onList(rowData, price.value);
+          });
+          priceLabel.appendChild(price);
+          listRow.appendChild(priceLabel);
+          listRow.appendChild(enterHint());
+        }
         panel.appendChild(listRow);
       }));
       actionBody.appendChild(actSwitch("Buyer", function (panel) {
-        var buyerLabel = el("label", "Enter optional private buyer address");
-        var buyerRow = row();
-        buyer.setAttribute("aria-label", "Enter optional private buyer address");
-        buyer.spellCheck = false;
-        buyer.addEventListener("keydown", function (ev) {
-          if (ev.key !== "Enter") return;
-          ev.preventDefault();
-          onBuyer(rowData, buyer.value);
-        });
-        buyerLabel.appendChild(buyer);
-        buyerRow.appendChild(buyerLabel);
-        if (rowData.meta.buyer) buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
+        var buyerLabel, allowed, buyerRow = row();
+        if (rowData.meta.buyer) {
+          allowed = el("span", rowData.meta.buyer);
+          allowed.className = "act-frozen";
+          buyerRow.appendChild(allowed);
+          buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
+        } else {
+          buyerLabel = el("label", "Enter optional private buyer address");
+          buyer.setAttribute("aria-label", "Enter optional private buyer address");
+          buyer.spellCheck = false;
+          buyer.addEventListener("keydown", function (ev) {
+            if (ev.key !== "Enter") return;
+            ev.preventDefault();
+            onBuyer(rowData, buyer.value);
+          });
+          buyerLabel.appendChild(buyer);
+          buyerRow.appendChild(buyerLabel);
+          buyerRow.appendChild(enterHint());
+        }
         panel.appendChild(buyerRow);
       }));
       if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
         var vaultLabel = el("label", "Vault address");
         var parkRow = row();
         panel.appendChild(el("p", rowData.meta.nominationAllowed
-          ? "Park vaults the photograph at an address of your choosing. Only that address can call release and return it to the title holder. It cannot transfer or sell it. A vault that cannot or will not call release freezes title forever. If it stays vaulted for 30 days, the owner earns a nomination to whitelist one new artist on OnPlate."
-          : "Park vaults the photograph at an address of your choosing. Only that address can call release and return it to the title holder. It cannot transfer or sell it. A vault that cannot or will not call release freezes title forever."));
+          ? "Park this photograph at a vault address. Only that address can return it, and only to you. If they never return it, it stays there. After 30 days you can nominate one new artist."
+          : "Park this photograph at a vault address. Only that address can return it, and only to you. If they never return it, it stays there."));
         vault.setAttribute("aria-label", "Vault address");
         vault.spellCheck = false;
         vault.addEventListener("keydown", function (ev) {
@@ -1736,6 +1838,7 @@
         });
         vaultLabel.appendChild(vault);
         parkRow.appendChild(vaultLabel);
+        parkRow.appendChild(enterHint());
         if (rowData.meta.mailbox) parkRow.appendChild(button("Clear vault", function () { onClear(rowData); }));
         panel.appendChild(parkRow);
       }));
@@ -1743,8 +1846,15 @@
       tools.appendChild(actionBody);
       tiePanel(actions, actionBody, false);
     }
+    if (rowData.meta.nominationAllowed && clockStillRunning(rowData.meta, chainNow)) {
+      var waiting = el("p", nominationWaitText(rowData.meta));
+      waiting.className = "plate-wait";
+      box.appendChild(waiting);
+    }
     if (armed(rowData) && mine() && rowData.meta.parked && P.sameAddr(account, rowData.meta.mailbox)) {
-      box.appendChild(button("Return", function () { onRelease(rowData); }));
+      var ret = button("Return", function () { onRelease(rowData); });
+      ret.className = "danger";
+      box.appendChild(ret);
     }
     if (mayNominate(rowData)) {
       var nominee = el("input");
@@ -1880,7 +1990,7 @@
       ids = [];
       for (i = 1n; i <= count; i++) ids.push(i);
       // The uploader log and the clock do not depend on the photographs.
-      uploadP = viewing ? Promise.resolve(null) : P.uploaders(chain, factory).catch(function () { return null; });
+      uploadP = P.uploaders(chain, factory).catch(function () { return null; });
       blockP = P.readBlock(chain, "latest").catch(function () { return null; });
       return Promise.all([
         mapLimit(ids, 4, function (id) {
@@ -1918,16 +2028,14 @@
       else chainNow = 0n;
       loaded = packed.list;
       loadedClaims = packed.claims;
-      if (!viewing) {
-        if (packed.upMap) {
-          uploadsKnown = true;
-          for (i = 0; i < loaded.length; i++) {
-            rowData = loaded[i];
-            key = rowData && rowData.plate ? String(rowData.plate).toLowerCase() : "";
-            rowData.uploader = key && packed.upMap[key] ? packed.upMap[key] : "";
-          }
-        } else uploadsKnown = false;
-      }
+      if (packed.upMap) {
+        uploadsKnown = true;
+        for (i = 0; i < loaded.length; i++) {
+          rowData = loaded[i];
+          key = rowData && rowData.plate ? String(rowData.plate).toLowerCase() : "";
+          rowData.uploader = key && packed.upMap[key] ? packed.upMap[key] : "";
+        }
+      } else uploadsKnown = false;
       paintArtists();
       showFiltered();
     }).catch(function (err) {
@@ -2015,6 +2123,24 @@
     return now < meta.vaultedSince + HOLD;
   }
 
+  function nominationDaysLeft(meta, now) {
+    var day = 24n * 60n * 60n;
+    var end, left;
+    if (!meta || meta.vaultedSince === 0n || !now) return 30;
+    end = meta.vaultedSince + HOLD;
+    if (now >= end) return 0;
+    left = end - now;
+    return Number((left + day - 1n) / day);
+  }
+
+  function nominationWaitText(meta) {
+    var vault = (meta && meta.mailbox) || "";
+    var days = nominationDaysLeft(meta, chainNow);
+    var when = days === 1 ? "1 day" : days + " days";
+    if (vault) return "Currently in nomination status at " + vault + ". Nomination concludes in " + when + ".";
+    return "Currently in nomination status. Nomination concludes in " + when + ".";
+  }
+
   function paintNomination(rowData, key) {
     var i;
     if (!rowData || !rowData.meta) return;
@@ -2029,7 +2155,7 @@
     var factory = P.factoryOf(chain);
     var price;
     var below = false;
-    if (!factory || !mine() || !rowData.hashOk || !rowData.meta.printed) return;
+    if (!factory || !mine() || !rowData.meta.printed) return;
     busy = true;
     P.reassemble(chain, rowData.plate, rowData.meta.hash).then(function () {
       return P.listedPair(chain, rowData.plate);
@@ -2043,7 +2169,7 @@
         return warnThen("This sale is below the original price. It will permanently remove this plate’s ability to nominate. This cannot be undone.", true);
       }
     }).then(function () {
-      if (!window.confirm("Buy this photograph for " + P.weiToEth(price) + " ETH (" + price.toString() + " wei)?")) {
+      if (!window.confirm("Buy this photograph for " + P.weiToEth(price) + " ETH?")) {
         throw new Error("cancel");
       }
       return P.listedPair(chain, rowData.plate);
@@ -2062,6 +2188,12 @@
       if (below) paintNomination(rowData, "revoked");
       say(below ? "Sale complete. This plate can no longer nominate." : "The photograph was bought.");
     }).catch(fail);
+  }
+
+  function enterHint() {
+    var hint = el("span", "Press Enter");
+    hint.className = "act-hint";
+    return hint;
   }
 
   // List, Buyer, and Park sit in Actions. Each one opens its fields in place.
@@ -2092,7 +2224,7 @@
       return;
     }
     say("");
-    if (!window.confirm("List this photograph for " + P.weiToEth(wei) + " ETH (" + wei.toString() + " wei)?")) return;
+    if (!window.confirm("List this photograph for " + P.weiToEth(wei) + " ETH?")) return;
     gate(rowData).then(function (pin) {
       return P.send(chain, {
         kind: "list",
@@ -2117,7 +2249,7 @@
       return;
     }
     say("");
-    if (!window.confirm("Only " + buyer + " may buy. You can replace or clear that address while you hold the photograph and it is not parked. A sale clears this restriction so the new owner starts with a public listing.")) return;
+    if (!window.confirm("Only " + buyer + " may buy this photograph?")) return;
     gate(rowData).then(function (pin) {
       return P.send(chain, {
         kind: "setAllowedBuyer",
@@ -2152,8 +2284,7 @@
       return;
     }
     say("");
-    if (!window.confirm("Park with " + vault + ". The price and the named buyer are cleared. Only that address can call release. A vault that cannot or will not call release freezes title forever. The photograph comes back only to the title holder.")) return;
-    if (!window.confirm("Park the photograph with " + vault + " now?")) return;
+    if (!window.confirm("Park this photograph at " + vault + "? Only that address can return it, and only to you. If they never return it, it stays there.")) return;
     gate(rowData).then(function (pin) {
       if (P.sameAddr(vault, pin.plate) || P.sameAddr(vault, pin.factory)) throw new Error("address");
       return P.send(chain, {
@@ -2177,7 +2308,7 @@
         return warnThen("Leaving the vault now will restart the 30-day waiting period. The nomination potential is not lost, but the clock starts over the next time it is vaulted.", false);
       }
     }).then(function () {
-      if (!window.confirm("Return the photograph to the title holder? There is no destination to type.")) {
+      if (!window.confirm("Return the photograph to the title holder? Transfers are not allowed to any other address.")) {
         throw new Error("cancel");
       }
       return gate(rowData);

@@ -494,6 +494,21 @@ section.plate .meta { max-width: 40rem; margin-top: 0.45rem; font-size: 0.86rem;
 }
 .act-form .row { align-items: flex-end; margin: 0.35rem 0 0; }
 .act-form input { width: 100%; }
+.act-frozen {
+  color: #8a948c;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+  align-self: center;
+  flex: 1 1 12rem;
+  max-width: 22rem;
+}
+.act-hint {
+  color: #8a948c;
+  font-size: 0.78rem;
+  align-self: center;
+  white-space: nowrap;
+  margin: 0 0 0.2rem;
+}
 
 section.plate .meta > p { margin: 0.35rem 0 0.15rem; }
 .facts {
@@ -530,13 +545,21 @@ p { overflow-wrap: anywhere; }
   height: auto;
   image-rendering: pixelated;
   margin: 0.8rem 0;
-  position: relative;
-  transform-origin: top left;
+  cursor: pointer;
 }
-.thumb:hover,
 .thumb:focus {
-  transform: scale(5);
-  z-index: 2;
+  outline: 1px solid #8d7444;
+  outline-offset: 2px;
+}
+.plate-wait {
+  margin: 0.9rem 0 0;
+  max-width: 36rem;
+  color: #6e2424;
+  font-weight: 700;
+}
+section.plate > button.danger {
+  display: inline-block;
+  margin: 0.9rem 0.8rem 0 0;
 }
 #prep { max-width: 40rem; color: #4e6356; }
 #prep:empty { display: none; }
