@@ -1078,7 +1078,7 @@
     collected = hasCollection();
     showAll = viewing && (want || favoritesOn() || collectionOn());
     if (!people.length && !favs.length && !collected && !showAll) return;
-    if (showAll || favs.length || collected || !viewing) {
+    if (showAll || favs.length || collected) {
       filters = el("div");
       filters.className = "people";
       // The view page offers All photographs while a filter is on. The add page does not.
@@ -1114,12 +1114,9 @@
         });
         filters.appendChild(choice);
       }
-      if (!viewing) {
-        for (i = 0; i < people.length; i++) addArtistChoice(filters, people[i], want);
-      }
       if (filters.childNodes.length) menu.appendChild(filters);
     }
-    if (viewing && people.length) {
+    if (people.length) {
       group = el("div");
       group.className = "people";
       toggle = el("button");
