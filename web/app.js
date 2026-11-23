@@ -67,6 +67,7 @@
   var hallFocus = "";
   var foldKey = "";
   var artistsMenuOpen = false;
+  var justBought = "";
 
   function say(text) {
     note.textContent = text || "";
@@ -1095,6 +1096,8 @@
       rowData = loaded[i];
       if (!viewing) {
         if (!uploadedByMe(rowData)) continue;
+      } else if (justBought && P.sameAddr(rowData.plate, justBought)) {
+        // Keep the photograph in view so the bought line can sit under Details.
       } else if (collectionOn()) {
         if (!collectedByMe(rowData)) continue;
       } else if (saleOn()) {
@@ -1881,6 +1884,11 @@
     tools.appendChild(details);
     box.appendChild(tools);
     tiePanel(record, details, true);
+    if (justBought && P.sameAddr(rowData.plate, justBought)) {
+      var boughtNote = el("p", "You just bought this photograph.");
+      boughtNote.className = "plate-note";
+      box.appendChild(boughtNote);
+    }
     if (armed(rowData) && mine() && rowData.meta.printed && rowData.meta.price > 0n && !rowData.meta.parked && rowData.meta.holder
       && P.sameAddr(rowData.meta.holder, rowData.meta.title) && !P.sameAddr(account, rowData.meta.title)
       && (!rowData.meta.buyer || P.sameAddr(account, rowData.meta.buyer))) {
@@ -2301,9 +2309,12 @@
         from: account,
         price: price
       });
-    }).then(sent).then(function () {
+    }).then(function (hash) {
+      justBought = rowData.plate || "";
+      return sent(hash);
+    }).then(function () {
       if (below) paintNomination(rowData, "revoked");
-      say(below ? "Sale complete. This plate can no longer nominate." : "The photograph was bought.");
+      say("");
     }).catch(fail);
   }
 
