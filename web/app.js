@@ -445,6 +445,7 @@
     if (message === "open") return OPEN_SENTENCE;
     if (message === "denied") return "This account cannot add a photograph on this factory.";
     if (message === "account" || message === "wallet") return "Connect the account that should send this.";
+    if (message === "history") return "The chain history could not be read, so nothing was sent.";
     if (/reject|denied|cancel/i.test(message)) return "The wallet did not send it.";
     return "The transaction was not sent.";
   }
@@ -2978,8 +2979,10 @@
   }
 
   function showUploadError(text) {
+    var node = document.getElementById("upload-error");
     uploadNote("");
     uploadError(text || "");
+    if (text && node) node.scrollIntoView({ block: "nearest" });
   }
 
   function prepareNote(text) {
@@ -3059,6 +3062,8 @@
     }, function () {
       showQuote(plan.chunks.length, null, gen);
     }).then(function () {
+      var err = document.getElementById("upload-error");
+      if (shareSentence() && err && err.textContent) err.scrollIntoView({ block: "nearest" });
       return fit;
     }).then(function () {
       return openPlans();
@@ -3842,20 +3847,24 @@
   }
 
   function paintSteps() {
-    var left, storeAllBtn, nextBtn, first, blocked, share;
+    var left, storeAllBtn, nextBtn, first, blocked, share, err;
     if (!steps) return;
     steps.replaceChildren();
     paintMore();
     paintPath();
     paintRegister();
     share = document.getElementById("share-note");
-    if (share) share.textContent = [shareSentence(), scanSentence()].filter(Boolean).join(" ");
+    if (share) share.textContent = scanSentence();
     if (!job) {
       clearAgentActions();
       foldSteps();
       return;
     }
     blocked = shareSentence();
+    if (blocked) {
+      err = document.getElementById("upload-error");
+      if (!err || err.textContent !== blocked) showUploadError(blocked);
+    }
     if (uploadPath === "manual") {
       left = remainingPieces();
       if (left) {
@@ -4115,6 +4124,9 @@
           showQuote(count, price, gen);
         }, function () {
           showQuote(count, null, gen);
+        }).then(function () {
+          var err = document.getElementById("upload-error");
+          if (shareSentence() && err && err.textContent) err.scrollIntoView({ block: "nearest" });
         });
       })(quoteGen, plan.chunks.length);
     }).catch(function (err) {

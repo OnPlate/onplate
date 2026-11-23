@@ -503,6 +503,13 @@ contract Upload is Script {
         takeOpenBooks(job, want, taken, foreign);
     }
 
+    /// Public Sepolia nodes cap eth_getLogs at 50,000 blocks. Factory and batch
+    /// were created in this block. Anvil and a later mainnet start at 0.
+    function logFrom() internal view returns (uint256) {
+        if (block.chainid == 11155111) return 12190877;
+        return 0;
+    }
+
     function takePieceLogs(Job memory job, bytes32[] memory want, bool[] memory taken)
         internal
         view
@@ -510,7 +517,7 @@ contract Upload is Script {
     {
         bytes32[] memory topics = new bytes32[](1);
         topics[0] = keccak256("PieceCreated(address,uint256,address)");
-        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(0, block.number, job.batch, topics);
+        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(logFrom(), block.number, job.batch, topics);
         uint256 n;
         for (n = 0; n < logs.length; n++) {
             if (logs[n].topics.length < 4) continue;
@@ -550,7 +557,7 @@ contract Upload is Script {
     function takeOpenBooks(Job memory job, bytes32[] memory want, bool[] memory taken, address foreign) internal view {
         bytes32[] memory topics = new bytes32[](1);
         topics[0] = keccak256("BookOpened(address,address,uint256)");
-        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(0, block.number, job.factory, topics);
+        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(logFrom(), block.number, job.factory, topics);
         address best;
         uint256 bestCount;
         address foreignBook;

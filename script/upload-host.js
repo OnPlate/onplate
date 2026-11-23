@@ -787,12 +787,7 @@ async function adopt(job) {
     }
     taken[i] = true;
   }
-  const logs = await rpc(job.rpc, "eth_getLogs", [{
-    fromBlock: "0x0",
-    toBlock: "latest",
-    address: job.batch,
-    topics: [pieceTopic()]
-  }]);
+  const logs = await OnPlate.getLogsOn(job.rpc, chainName(job.chainId), job.batch, [pieceTopic()]);
   let foreign = "";
   for (let n = 0; n < logs.length; n++) {
     const log = logs[n];

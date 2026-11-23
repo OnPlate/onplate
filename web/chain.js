@@ -186,6 +186,10 @@
     sepolia: "0xdd275A792eD54b723da035717CA16b4c8Ee64367",
     anvil: "0x663F3ad617193148711d28f5334eE4Ed07016602"
   };
+  // Public Sepolia nodes refuse eth_getLogs from block 0 (50,000-block cap).
+  // Factory and ChunkBatch were created in this block. Anvil starts at 0.
+  var LOG_START = { sepolia: 12190877 };
+  var LOG_WINDOW = 40000n;
 
   function utf8(s) {
     return new TextEncoder().encode(s);
@@ -632,13 +636,15 @@
   }
 
   function storeQuote(count, weiPerGas, chain) {
-    var cost, keep;
+    var cost, keep, places;
     count = BigInt(count);
     weiPerGas = BigInt(weiPerGas);
     if (count <= 0n || weiPerGas <= 0n) throw new Error("gasprice");
     cost = count * gasPerChunk(chain) * weiPerGas;
     keep = cost * 2n;
-    return { about: ethUp(cost, 6), keep: ethUp(keep, 6) };
+    // Amounts below 0.000001 ETH use 12 decimal places.
+    places = cost > 0n && cost < 10n ** 12n ? 12 : 6;
+    return { about: ethUp(cost, places), keep: ethUp(keep, places) };
   }
 
   // The higher of the node's suggested price and the latest base fee.
@@ -1882,14 +1888,42 @@
     return digest(raw);
   }
 
+  function logStart(chain) {
+    return BigInt(LOG_START[chain] || 0);
+  }
+
+  function getLogsOn(url, chain, address, topics) {
+    return rpc(url, "eth_blockNumber", []).then(function (hex) {
+      var latest = u256(hex);
+      var start = logStart(chain);
+      var rows = [];
+      if (start > latest) start = 0n;
+      function step(from) {
+        var to;
+        if (from > latest) return rows;
+        to = from + LOG_WINDOW - 1n;
+        if (to > latest) to = latest;
+        return rpc(url, "eth_getLogs", [{
+          address: address,
+          fromBlock: hexQty(from),
+          toBlock: hexQty(to),
+          topics: topics
+        }]).then(function (part) {
+          var i;
+          if (Array.isArray(part)) {
+            for (i = 0; i < part.length; i++) rows.push(part[i]);
+          }
+          if (to >= latest) return rows;
+          return step(to + 1n);
+        });
+      }
+      return step(start);
+    });
+  }
+
   function getLogs(chain, address, topics) {
     return firstOk(chain, function (url) {
-      return rpc(url, "eth_getLogs", [{
-        address: address,
-        fromBlock: "0x0",
-        toBlock: "latest",
-        topics: topics
-      }]);
+      return getLogsOn(url, chain, address, topics);
     }).then(function (rows) {
       return Array.isArray(rows) ? rows : [];
     });
@@ -3171,6 +3205,8 @@
     createAddress: createAddress,
     reconcilePlan: reconcilePlan,
     discoverChain: discoverChain,
+    getLogs: getLogs,
+    getLogsOn: getLogsOn,
     deployPlannedChunk: deployPlannedChunk,
     deployPieceBatch: deployPieceBatch,
     storePlanShape: storePlanShape,
