@@ -562,10 +562,12 @@ p { overflow-wrap: anywhere; }
 }
 .plate-wait {
   margin: 0.9rem 0 0;
-  max-width: 36rem;
   color: #6e2424;
   font-weight: 700;
 }
+.plate-wait p { margin: 0; }
+.plate-wait p + p { margin-top: 0.2rem; }
+.plate-wait-at { white-space: nowrap; }
 .plate-note {
   margin: 0.9rem 0 0;
   max-width: 36rem;

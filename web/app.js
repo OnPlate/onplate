@@ -1989,9 +1989,7 @@
       tiePanel(actions, actionBody, false);
     }
     if (rowData.meta.nominationAllowed && clockStillRunning(rowData.meta, chainNow)) {
-      var waiting = el("p", nominationWaitText(rowData.meta));
-      waiting.className = "plate-wait";
-      box.appendChild(waiting);
+      box.appendChild(nominationWait(rowData.meta));
     }
     if (armed(rowData) && mine() && rowData.meta.parked && P.sameAddr(account, rowData.meta.mailbox)) {
       var ret = button("Return", function () { onRelease(rowData); });
@@ -2275,12 +2273,20 @@
     return Number((left + day - 1n) / day);
   }
 
-  function nominationWaitText(meta) {
-    var vault = (meta && meta.mailbox) || "";
-    var days = nominationDaysLeft(meta, chainNow);
-    var when = days === 1 ? "1 day" : days + " days";
-    if (vault) return "Currently in nomination status at " + vault + ". Nomination concludes in " + when + ".";
-    return "Currently in nomination status. Nomination concludes in " + when + ".";
+  function nominationWait(meta) {
+    var wrap = el("div");
+    var at, days, when, vault;
+    vault = (meta && meta.mailbox) || "";
+    days = nominationDaysLeft(meta, chainNow);
+    when = days === 1 ? "1 day" : days + " days";
+    wrap.className = "plate-wait";
+    at = el("p", vault
+      ? "Currently in nomination status at " + vault + "."
+      : "Currently in nomination status.");
+    at.className = "plate-wait-at";
+    wrap.appendChild(at);
+    wrap.appendChild(el("p", "Nomination concludes in " + when + "."));
+    return wrap;
   }
 
   function paintNomination(rowData, key) {
@@ -2341,11 +2347,8 @@
     return hint;
   }
 
-  function parkExplain(rowData, vault) {
-    var text = vault
-      ? "Park this photograph at " + vault + "; it will act as a vault."
-      : "Park this photograph at an address of your choice; it will act as a vault.";
-    text += " That vault address can only do one thing with the photo; return it to the wallet from which it came.";
+  function parkExplain(rowData) {
+    var text = "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came.";
     if (rowData && rowData.meta && rowData.meta.nominationAllowed) {
       text += " After vaulting for 30 days you can name one new nominated artist to the platform.";
     }
@@ -2440,7 +2443,7 @@
       return;
     }
     say("");
-    if (!window.confirm(parkExplain(rowData, vault))) return;
+    if (!window.confirm("Park this photograph at " + vault + "? Once sent the photo can only be retrieved by having the vault send it back to this wallet from which it came. Sending to an address you do not control could result in permanent locking of the photo.")) return;
     gate(rowData).then(function (pin) {
       if (P.sameAddr(vault, pin.plate) || P.sameAddr(vault, pin.factory)) throw new Error("address");
       return P.send(chain, {
