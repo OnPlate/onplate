@@ -1627,6 +1627,17 @@
     });
   }
 
+  function closePeerPanels(node) {
+    var tools, peers, i;
+    if (!node || !node.closest) return;
+    tools = node.closest(".plate-tools");
+    if (!tools) return;
+    peers = tools.querySelectorAll("details.plate-record, details.actions");
+    for (i = 0; i < peers.length; i++) {
+      if (peers[i] !== node && peers[i]._apply) peers[i]._apply(false, false);
+    }
+  }
+
   function tiePanel(node, panel, reveal) {
     var summary = node.querySelector("summary");
     function apply(open, fromUser) {
@@ -1646,8 +1657,9 @@
       var opening = !node.open;
       var reel, others, i;
       ev.preventDefault();
-      // On the add-page reel, one photograph's details stay open at a time.
       if (opening) {
+        closePeerPanels(node);
+        // On the add-page reel, one photograph's details stay open at a time.
         reel = node.closest ? node.closest(".studio-reel") : null;
         others = reel ? reel.querySelectorAll("details.plate-record") : [];
         for (i = 0; i < others.length; i++) {
@@ -1842,7 +1854,6 @@
         vaultLabel.appendChild(vault);
         parkRow.appendChild(vaultLabel);
         parkRow.appendChild(enterHint());
-        if (rowData.meta.mailbox) parkRow.appendChild(button("Clear vault", function () { onClear(rowData); }));
         panel.appendChild(parkRow);
       }));
       menu.appendChild(actions);
