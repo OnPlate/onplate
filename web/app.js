@@ -66,6 +66,7 @@
   var hallJump = false;
   var hallFocus = "";
   var foldKey = "";
+  var artistsMenuOpen = false;
 
   function say(text) {
     note.textContent = text || "";
@@ -1044,12 +1045,26 @@
     draw(shown, shownClaims);
   }
 
+  function addArtistChoice(group, addr, want) {
+    var choice = el("button");
+    choice.type = "button";
+    choice.title = addr;
+    choice.setAttribute("data-addr", addr);
+    paintPerson(choice, addr);
+    if (want && P.sameAddr(want, addr)) choice.setAttribute("aria-current", "true");
+    choice.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      chooseArtist(this.getAttribute("data-addr") || "");
+    });
+    group.appendChild(choice);
+  }
+
   function paintArtists() {
     var menu = document.getElementById("artist-menu");
     var want = artistParam();
-    var people, i, choice;
+    var people, i, choice, filters, group, toggle, list;
+    var favs, collected, showAll;
     if (!menu) return;
-    var group;
     menu.replaceChildren();
     var add = document.createElement("a");
     var pair = pages();
@@ -1059,59 +1074,72 @@
     add.textContent = viewing ? "Add a photograph" : "View the photographs";
     menu.appendChild(add);
     people = artistsOf(loaded);
-    var favs = hallMarks("fav");
-    var collected = hasCollection();
-    if (!people.length && !favs.length && !collected) return;
-    group = el("div");
-    group.className = "people";
-    // The view page offers All photographs while a filter is on. The add page does not.
-    if (viewing && (want || favoritesOn() || collectionOn())) {
-      choice = el("button");
-      choice.type = "button";
-      choice.textContent = "All photographs";
-      choice.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        clearFilters();
-      });
-      group.appendChild(choice);
+    favs = hallMarks("fav");
+    collected = hasCollection();
+    showAll = viewing && (want || favoritesOn() || collectionOn());
+    if (!people.length && !favs.length && !collected && !showAll) return;
+    if (showAll || favs.length || collected || !viewing) {
+      filters = el("div");
+      filters.className = "people";
+      // The view page offers All photographs while a filter is on. The add page does not.
+      if (showAll) {
+        choice = el("button");
+        choice.type = "button";
+        choice.textContent = "All photographs";
+        choice.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          clearFilters();
+        });
+        filters.appendChild(choice);
+      }
+      if (favs.length) {
+        choice = el("button");
+        choice.type = "button";
+        choice.textContent = "Favorites";
+        if (favoritesOn()) choice.setAttribute("aria-current", "true");
+        choice.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          setFavorites(!favoritesOn());
+        });
+        filters.appendChild(choice);
+      }
+      if (collected) {
+        choice = el("button");
+        choice.type = "button";
+        choice.textContent = "My Photographs";
+        if (collectionOn()) choice.setAttribute("aria-current", "true");
+        choice.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          setCollection(!collectionOn());
+        });
+        filters.appendChild(choice);
+      }
+      if (!viewing) {
+        for (i = 0; i < people.length; i++) addArtistChoice(filters, people[i], want);
+      }
+      if (filters.childNodes.length) menu.appendChild(filters);
     }
-    if (favs.length) {
-      choice = el("button");
-      choice.type = "button";
-      choice.textContent = "Favorites";
-      if (favoritesOn()) choice.setAttribute("aria-current", "true");
-      choice.addEventListener("click", function (ev) {
+    if (viewing && people.length) {
+      group = el("div");
+      group.className = "people";
+      toggle = el("button");
+      toggle.type = "button";
+      toggle.textContent = "Artists";
+      toggle.setAttribute("aria-expanded", artistsMenuOpen ? "true" : "false");
+      toggle.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        setFavorites(!favoritesOn());
+        artistsMenuOpen = !artistsMenuOpen;
+        paintArtists();
       });
-      group.appendChild(choice);
+      group.appendChild(toggle);
+      if (artistsMenuOpen) {
+        list = el("div");
+        list.className = "artist-list";
+        for (i = 0; i < people.length; i++) addArtistChoice(list, people[i], want);
+        group.appendChild(list);
+      }
+      menu.appendChild(group);
     }
-    if (collected) {
-      choice = el("button");
-      choice.type = "button";
-      choice.textContent = "My Photographs";
-      if (collectionOn()) choice.setAttribute("aria-current", "true");
-      choice.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        setCollection(!collectionOn());
-      });
-      group.appendChild(choice);
-    }
-    for (i = 0; i < people.length; i++) {
-      choice = el("button");
-      choice.type = "button";
-      choice.title = people[i];
-      choice.setAttribute("data-addr", people[i]);
-      paintPerson(choice, people[i]);
-      if (want && P.sameAddr(want, people[i])) choice.setAttribute("aria-current", "true");
-      choice.addEventListener("click", function (ev) {
-        var addr = this.getAttribute("data-addr") || "";
-        ev.stopPropagation();
-        chooseArtist(addr);
-      });
-      group.appendChild(choice);
-    }
-    menu.appendChild(group);
   }
 
   function owned(rowData) {

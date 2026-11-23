@@ -74,6 +74,9 @@ body { margin: 0; font: 17px/1.6 Georgia, "Iowan Old Style", serif; background: 
   padding-top: 0.3rem;
   border-top: 1px solid #e3dccb;
 }
+.artist-menu .artist-list button {
+  padding-left: 1.4rem;
+}
 .artist-menu button[aria-current="true"] {
   text-decoration: underline;
   text-decoration-color: #8d7444;
