@@ -2327,17 +2327,13 @@
     return grouped + " pieces, about " + mb + " MB";
   }
 
-  // Same facts as pieceLine, in the same order as the dropped-photo line: size, then pieces.
-  function limitLine(cap) {
+  function sizeShort(cap) {
     var n = Number(cap || P.CONTRACT_CHUNKS);
-    var count = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     var bytes = n * P.CHUNK;
-    var mb;
     if (bytes < 1000000) {
-      return "about " + (Math.round(bytes / 100) / 10).toFixed(1) + " KB, " + count + " pieces";
+      return "~" + (Math.round(bytes / 100) / 10).toFixed(1) + " KB";
     }
-    mb = (Math.round(bytes / 100000) / 10).toFixed(1);
-    return "about " + mb + " MB, " + count + " pieces";
+    return "~" + (Math.round(bytes / 100000) / 10).toFixed(1) + " MB";
   }
 
   function fillRoyalties(factory) {
@@ -2365,8 +2361,8 @@
       if (artistEl.dataset.touched !== "1") artistEl.value = bpsField(chainArtist);
       if (help) {
         help.textContent = allowed
-          ? "Maximum size allowed: " + limitLine(cap) + "."
-          : "Maximum size allowed: " + limitLine(P.OPEN_MAX) + ". A nomination raises that to " + limitLine(cap) + ".";
+          ? "nominated artists " + sizeShort(cap)
+          : "open artists " + sizeShort(P.OPEN_MAX) + "; nominated artists " + sizeShort(cap);
       }
     }).catch(function () {
       if (P.sameAddr(P.factoryOf(chain), factory)) {
