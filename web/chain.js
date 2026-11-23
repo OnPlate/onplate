@@ -30,6 +30,7 @@
     ],
     sepolia: [
       "https://ethereum-sepolia-rpc.publicnode.com",
+      "https://gateway.tenderly.co/public/sepolia",
       "https://sepolia.drpc.org",
       "https://rpc.sepolia.ethpandaops.io",
       "https://1rpc.io/sepolia",
@@ -393,12 +394,12 @@
     return chain === "anvil" ? 1 : 2;
   }
 
-  function rpc(url, method, params) {
+  function rpc(url, method, params, ms) {
     return fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params }),
-      signal: AbortSignal.timeout(READ_MS)
+      signal: AbortSignal.timeout(ms || READ_MS)
     }).then(function (res) {
       if (!res.ok) throw new Error("http");
       return res.json();
@@ -1013,7 +1014,7 @@
     var urls = endpoints(chain);
     function step(i) {
       if (i >= urls.length) return Promise.reject(new Error("code"));
-      return rpc(urls[i], "eth_getCode", [address, "latest"]).then(function (code) {
+      return rpc(urls[i], "eth_getCode", [address, "latest"], 20000).then(function (code) {
         var raw = payloadOfCode(code);
         var j;
         if (!raw || raw.length !== payload.length) throw new Error("mismatch");
@@ -1025,6 +1026,31 @@
       });
     }
     return step(0);
+  }
+
+  // Empty code is a successful RPC result. Right after a create, a public node
+  // can still return 0x. Skip that node so a later URL can supply the bytes.
+  function liveCode(chain, address) {
+    return firstOk(chain, function (url) {
+      return rpc(url, "eth_getCode", [address, "latest"], 20000).then(function (code) {
+        var bytes = hexToBytes(code);
+        if (!bytes || bytes.length < 2 || bytes[0] !== 0) throw new Error("empty");
+        return code;
+      });
+    });
+  }
+
+  function waitPieceCode(chain, address, payload) {
+    var start = Date.now();
+    function step() {
+      return codeMatches(chain, address, payload).catch(function (err) {
+        if (Date.now() - start > 20000) {
+          return Promise.reject(err && err.message === "code" ? err : new Error("mismatch"));
+        }
+        return wait(800).then(step);
+      });
+    }
+    return step();
   }
 
   function firstOk(chain, fn) {
@@ -1792,7 +1818,7 @@
     if (!rec || rec.status !== "0x1") return Promise.resolve(failWaiting("The contract creation reverted.", true));
     for (i = 0; i < logs.length; i++) {
       log = logs[i];
-      if (!log || !log.topics || log.topics.length < 4 || log.topics[0] !== topic) continue;
+      if (!log || !log.topics || log.topics.length < 4 || String(log.topics[0]).toLowerCase() !== topic) continue;
       if (!helper || !sameAddr(log.address, helper)) continue;
       payer = addrOf(log.topics[1]);
       chunkAddr = addrOf(log.topics[3]);
@@ -1805,7 +1831,7 @@
       return 0;
     });
     if (!found.length || found.length > waiting.length) {
-      return Promise.resolve(failWaiting("The deployed code did not match this piece.", true));
+      return Promise.resolve(failWaiting("The piece was stored, but this page could not read it yet.", false));
     }
     function one(n) {
       var idx, payload;
@@ -1821,13 +1847,7 @@
       }
       idx = waiting[n];
       payload = bytesOf(plan.chunks[idx].bytes);
-      return contractCode(chain, found[n].address).then(function (code) {
-        if (!codeIsPayload(code, payload)) {
-          plan.chunks[idx].status = "failed";
-          plan.chunks[idx].tx = "";
-          plan.chunks[idx].error = "The deployed code did not match this piece.";
-          return false;
-        }
+      return waitPieceCode(chain, found[n].address, payload).then(function () {
         plan.chunks[idx].status = "mined";
         plan.chunks[idx].address = found[n].address;
         plan.chunks[idx].tx = rec.transactionHash || plan.chunks[idx].tx || "";
@@ -1835,6 +1855,10 @@
         plan.chunks[idx].error = "";
         plan.chunks[idx].missed = false;
         return one(n + 1);
+      }, function () {
+        plan.chunks[idx].status = "failed";
+        plan.chunks[idx].error = "The deployed code did not match this piece.";
+        return false;
       });
     }
     return one(0).then(function (ok) {
@@ -1857,12 +1881,7 @@
       return Promise.resolve(false);
     }
     if (!rec.contractAddress) return applyHelperReceipt(chain, plan, rec);
-    return contractCode(chain, rec.contractAddress).then(function (code) {
-      if (!codeIsPayload(code, payload)) {
-        chunk.status = "failed";
-        chunk.error = "The deployed code did not match this piece.";
-        return false;
-      }
+    return waitPieceCode(chain, rec.contractAddress, payload).then(function () {
       chunk.status = "mined";
       chunk.address = parseAddr(rec.contractAddress);
       chunk.tx = rec.transactionHash || chunk.tx || "";
@@ -1874,6 +1893,10 @@
         rec.baseFee = u256(block.baseFeePerGas);
         return true;
       });
+    }, function () {
+      chunk.status = "failed";
+      chunk.error = "The deployed code did not match this piece.";
+      return false;
     });
   }
 
@@ -2107,7 +2130,7 @@
         payer = addrOf(log.topics[1]);
         chunk = addrOf(log.topics[3]);
         if (!chunk) return;
-        return contractCode(chain, chunk).then(function (code) {
+        return liveCode(chain, chunk).then(function (code) {
           consider(chunk, code, payer);
         }).catch(function () {});
       });
@@ -3207,6 +3230,8 @@
     discoverChain: discoverChain,
     getLogs: getLogs,
     getLogsOn: getLogsOn,
+    liveCode: liveCode,
+    waitPieceCode: waitPieceCode,
     deployPlannedChunk: deployPlannedChunk,
     deployPieceBatch: deployPieceBatch,
     storePlanShape: storePlanShape,
