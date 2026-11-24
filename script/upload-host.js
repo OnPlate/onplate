@@ -577,6 +577,24 @@ async function getCodeReads(job, addr) {
   return agreeRpc(job.reads, job.readNeed, "eth_getCode", [addr, "latest"]);
 }
 
+// The sending RPC already has the receipt. Other public nodes can still
+// return empty code for a few hundred milliseconds. Two of those empties
+// would agree and fail the payload check.
+async function waitPieceCode(job, addr, want) {
+  const started = Date.now();
+  while (Date.now() - started < 20000) {
+    let code = "";
+    try { code = await getCode(job.rpc, addr); } catch (e) {}
+    if (payloadHash(code) === want) return code;
+    try {
+      code = await getCodeReads(job, addr);
+      if (payloadHash(code) === want) return code;
+    } catch (e) {}
+    await new Promise(function (ok) { setTimeout(ok, 400); });
+  }
+  die("The deployed code did not match this piece.");
+}
+
 async function pieceMaker(job, chunk) {
   const word = await callReads(job, job.batch, OnPlate.sel("maker") + OnPlate.padAddr(chunk));
   return OnPlate.addrOf(word);
@@ -1060,10 +1078,8 @@ async function storeGroups(job, priv) {
     }
     if (!rec) die("This group did not fit one transaction.");
     for (let j = 0; j < accepted; j++) {
-      const code = await getCodeReads(job, job.chunks[i + j]);
-      if (payloadHash(code) !== keccakHex(sliceAt(job.image, i + j))) {
-        die("The deployed code did not match this piece.");
-      }
+      const want = keccakHex(sliceAt(job.image, i + j));
+      await waitPieceCode(job, job.chunks[i + j], want);
     }
     saveProgress(job);
     console.log("stored", countStored(job.chunks));
