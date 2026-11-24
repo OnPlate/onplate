@@ -39,6 +39,11 @@
   var planShape = null;
   var commandOpen = false;
   var chainChunks = null;
+  var addAllowed = false;
+  var sizeGate = "";
+  var walletProviders = [];
+  var packScrollY = 0;
+  var packTouchLock = false;
   var linkNote = "";
   var chainNow = 0n;
   var HOLD = 30n * 24n * 60n * 60n;
@@ -84,8 +89,10 @@
     node.classList.toggle("working", preparing);
     node.setAttribute("aria-busy", preparing ? "true" : "false");
     node.textContent = preparing ? "Preparing…" : (didPrepare ? "Redo Prepare" : "Prepare");
-    node.disabled = preparing;
-    if (didPrepare && !preparing) node.title = "Prepare again with the selected photograph.";
+    node.disabled = preparing || !!sizeGate;
+    if (preparing) node.removeAttribute("title");
+    else if (sizeGate) node.title = sizeGate;
+    else if (didPrepare) node.title = "Prepare again with the selected photograph.";
     else node.removeAttribute("title");
   }
 
@@ -617,15 +624,79 @@
     });
   }
 
-  function connect() {
+  function isMobileWallet() {
+    var ua = navigator.userAgent || "";
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  }
+
+  function rememberProvider(provider, rdns) {
+    var i;
+    if (!provider || !provider.request) return;
+    for (i = 0; i < walletProviders.length; i++) {
+      if (walletProviders[i].provider === provider) return;
+    }
+    walletProviders.push({ provider: provider, rdns: rdns || "" });
+  }
+
+  function walletProvider() {
     var eth = window.ethereum;
-    if (!eth || !eth.request) {
+    var i, list;
+    for (i = 0; i < walletProviders.length; i++) {
+      if (walletProviders[i].rdns === "io.metamask") return walletProviders[i].provider;
+    }
+    if (eth && Array.isArray(eth.providers)) {
+      list = eth.providers;
+      for (i = 0; i < list.length; i++) {
+        if (list[i] && list[i].isMetaMask && list[i].request) return list[i];
+      }
+      for (i = 0; i < list.length; i++) {
+        if (list[i] && list[i].request) return list[i];
+      }
+    }
+    for (i = 0; i < walletProviders.length; i++) {
+      if (walletProviders[i].provider && walletProviders[i].provider.request) {
+        return walletProviders[i].provider;
+      }
+    }
+    if (eth && eth.isMetaMask && eth.request) return eth;
+    if (eth && eth.request) return eth;
+    return null;
+  }
+
+  function metamaskDappLink() {
+    var loc = window.location;
+    var path = loc.host + loc.pathname + loc.search + loc.hash;
+    return "https://metamask.app.link/dapp/" + path.replace(/^\/+/, "");
+  }
+
+  function connect() {
+    var eth = walletProvider();
+    function asked(list) {
+      account = list && list[0] ? list[0] : "";
+      paintAccount();
+      refresh();
+      openPlans();
+    }
+    if (!eth) {
+      if (isMobileWallet()) {
+        say("Opening MetaMask…");
+        window.location.assign(metamaskDappLink());
+        return;
+      }
       say("No wallet is available.");
       return;
     }
     P.setOff(false);
     // Refresh uses silent eth_accounts so the address can come back without a popup.
     // Connect asks for send permission, which that silent read does not grant.
+    // MetaMask on a phone often lacks wallet_requestPermissions, so the phone
+    // asks for accounts directly.
+    if (isMobileWallet()) {
+      eth.request({ method: "eth_requestAccounts" }).then(asked).catch(function () {
+        say("The wallet did not connect.");
+      });
+      return;
+    }
     eth.request({
       method: "wallet_requestPermissions",
       params: [{ eth_accounts: {} }]
@@ -635,12 +706,7 @@
       var code = err && err.code;
       if (code === 4001 || code === "4001") throw err;
       return eth.request({ method: "eth_requestAccounts" });
-    }).then(function (list) {
-      account = list && list[0] ? list[0] : "";
-      paintAccount();
-      refresh();
-      openPlans();
-    }).catch(function () {
+    }).then(asked).catch(function () {
       say("The wallet did not connect.");
     });
   }
@@ -684,7 +750,7 @@
   }
 
   function askAccounts() {
-    var eth = window.ethereum;
+    var eth = walletProvider();
     if (P.isOff() || !eth || !eth.request) return;
     if (eth !== walletSeen) {
       walletSeen = eth;
@@ -694,12 +760,20 @@
   }
 
   function watchWallet() {
+    window.addEventListener("eip6963:announceProvider", function (ev) {
+      var detail = ev.detail;
+      if (detail && detail.provider) {
+        rememberProvider(detail.provider, detail.info && detail.info.rdns);
+      }
+      askAccounts();
+    });
+    try { window.dispatchEvent(new Event("eip6963:requestProvider")); } catch (e) {}
     askAccounts();
     window.addEventListener("ethereum#initialized", askAccounts);
     walletTimer = setInterval(function () {
       walletTries += 1;
       askAccounts();
-      if (account || walletTries >= 25) {
+      if (account || walletTries >= 40) {
         clearInterval(walletTimer);
         walletTimer = 0;
       }
@@ -2685,6 +2759,7 @@
       chainArtist = Number(P.u256(pair[1]));
       chainChunks = cap;
       allowed = mine() && pair[3] === true;
+      addAllowed = allowed;
       if (devEl) {
         devEl.textContent = "Developer Royalty " + bpsText(chainDev) + ", fixed.";
       }
@@ -2692,11 +2767,14 @@
       if (help) {
         help.textContent = "Maximum Size: " + sizeShort(allowed ? cap : P.OPEN_MAX);
       }
+      paintSizeGate();
     }).catch(function () {
       if (P.sameAddr(P.factoryOf(chain), factory)) {
         chainDev = null;
         chainArtist = null;
         chainChunks = null;
+        addAllowed = false;
+        paintSizeGate();
       }
     });
   }
@@ -2778,6 +2856,34 @@
     packOrigFile = null;
   }
 
+  function stopPackBleed(ev) {
+    var dialog = document.getElementById("pack-dialog");
+    if (!dialog || !dialog.open) return;
+    if (dialog.contains(ev.target)) return;
+    ev.preventDefault();
+  }
+
+  function lockPageForPack() {
+    packScrollY = window.scrollY || window.pageYOffset || 0;
+    document.documentElement.classList.add("pack-open");
+    document.body.style.top = "-" + packScrollY + "px";
+    if (!packTouchLock) {
+      packTouchLock = true;
+      document.addEventListener("touchmove", stopPackBleed, { passive: false });
+    }
+  }
+
+  function unlockPageForPack() {
+    if (!document.documentElement.classList.contains("pack-open") && !packTouchLock) return;
+    document.documentElement.classList.remove("pack-open");
+    document.body.style.top = "";
+    window.scrollTo(0, packScrollY);
+    if (packTouchLock) {
+      document.removeEventListener("touchmove", stopPackBleed);
+      packTouchLock = false;
+    }
+  }
+
   function closePackDialog() {
     var dialog = document.getElementById("pack-dialog");
     packDialogKey = "";
@@ -2808,6 +2914,52 @@
     if (packPick === "store" && packStore && packStore.file) return packStore.file;
     if (packPick === "close" && packClose && packClose.file) return packClose.file;
     return input && input.files && input.files[0];
+  }
+
+  function allowedPieces() {
+    if (addAllowed) return chainChunks || P.CONTRACT_CHUNKS;
+    return P.OPEN_MAX;
+  }
+
+  function fileFitsCap(file) {
+    var cap = allowedPieces();
+    if (!file || !cap) return true;
+    return file.size <= cap * P.CHUNK;
+  }
+
+  function markPackSize(id, file) {
+    var card = document.getElementById(id);
+    if (card) card.classList.toggle("is-oversize", !!(file && !fileFitsCap(file)));
+  }
+
+  function paintSizeGate() {
+    var file = workingFile();
+    var orig = document.getElementById("file");
+    var origFile = orig && orig.files && orig.files[0];
+    var cap = allowedPieces();
+    var maxLabel = sizeShort(cap);
+    var packing = !!(document.querySelector("#pack .pack-pair.is-working"));
+    var packedFit = (packStore && fileFitsCap(packStore.file)) || (packClose && fileFitsCap(packClose.file));
+    var over = !!(file && !fileFitsCap(file));
+    var msg = "";
+    markPackSize("pack-orig-wrap", origFile);
+    markPackSize("pack-close-wrap", packClose && packClose.file);
+    markPackSize("pack-store-wrap", packStore && packStore.file);
+    if (over) {
+      msg = "This photograph is larger than the maximum size (" + maxLabel + ").";
+      if (packedFit) {
+        msg += addAllowed
+          ? " Choose a packed copy that fits."
+          : " Choose a packed copy that fits, or connect a whitelisted account.";
+      } else if (packing) {
+        msg += " Packing may still produce a copy that fits.";
+      } else {
+        msg += " It has to fit in " + pieceLine(cap) + ".";
+      }
+    }
+    sizeGate = msg;
+    fileError(msg);
+    paintPrepare();
   }
 
   function blobJpeg(canvas, quality) {
@@ -2998,6 +3150,7 @@
     packPick = key || "orig";
     next = workingFile();
     if (orig) paintPackCaps(orig);
+    paintSizeGate();
     if (job && next && (next !== prev || next.size !== (prev && prev.size))) {
       stored = storedPieceCount();
       resetJob();
@@ -3023,7 +3176,10 @@
     }
     if (cap) cap.textContent = packDetail(opt.file, opt.w, opt.h);
     if (useBtn) useBtn.textContent = key === packPick ? "Using this file" : "Use this file";
-    if (dialog.showModal) dialog.showModal();
+    if (dialog.showModal) {
+      dialog.showModal();
+      lockPageForPack();
+    }
   }
 
   function showPack(file) {
@@ -3056,6 +3212,7 @@
     if (Math.ceil(file.size / P.CHUNK) <= P.OPEN_MAX) {
       hidePack();
       if (fig) fig.hidden = false;
+      paintSizeGate();
       return;
     }
     if (fig) fig.hidden = true;
@@ -3063,6 +3220,7 @@
     if (pair) pair.classList.add("is-working");
     setOrigSrc(file);
     paintPackCaps(file);
+    paintSizeGate();
     loadPackPrice();
     createImageBitmap(file).then(function (bmp) {
       var scales, origPieces, storeCap, closerCap;
@@ -3098,6 +3256,7 @@
         packPick = "orig";
         panel.hidden = true;
         if (fig) fig.hidden = false;
+        paintSizeGate();
         return;
       }
       if (found.store) {
@@ -3115,12 +3274,14 @@
         }
       }
       paintPackCaps(file);
+      paintSizeGate();
     }).catch(function (err) {
       if (gen !== packGen) return;
       if (pair) pair.classList.remove("is-working");
       packPick = "orig";
       panel.hidden = true;
       if (fig) fig.hidden = false;
+      paintSizeGate();
       if (typeof console !== "undefined" && console.error) console.error("pack", err);
     });
   }
@@ -3136,6 +3297,7 @@
       img.alt = "";
       fig.hidden = true;
       hidePack();
+      paintSizeGate();
       return;
     }
     previewUrl = URL.createObjectURL(file);
@@ -3144,6 +3306,7 @@
     fig.hidden = false;
     showFields();
     showPack(file);
+    paintSizeGate();
   }
 
   function showPlan(plan) {
@@ -3500,6 +3663,7 @@
     if (artistBps > 0 && (!artist || zero(artist))) { prepareNote("Name the artist recipient."); return; }
     if (artistBps === 0 && !artist) artist = "0x0000000000000000000000000000000000000000";
     if (!file) { prepareNote("Choose a photograph."); return; }
+    if (sizeGate) { prepareNote(sizeGate); return; }
     if (!chainChunks) { prepareNote(P.QUIET); return; }
     setPreparing(true);
     pricePromise = P.chainGasPrice(chain);
@@ -4718,6 +4882,7 @@
     say("");
     showPicked(this.files && this.files[0]);
     showPreview(this.files && this.files[0]);
+    paintSizeGate();
     openPlans();
   });
   (function () {
@@ -4823,6 +4988,10 @@
     if (dialog) {
       dialog.addEventListener("cancel", function () {
         packDialogKey = "";
+      });
+      dialog.addEventListener("close", function () {
+        packDialogKey = "";
+        unlockPageForPack();
       });
     }
   })();
