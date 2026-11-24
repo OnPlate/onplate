@@ -1514,9 +1514,11 @@
   }
 
   // The word replaces the Pepe, holds, then fades back, the same way the address does.
+  // On a phone the frog itself is the mark, so the word would hide the green fill.
   function flashFavorited(addr) {
     var node, token;
     if (!photos) return;
+    if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return;
     node = photos.querySelector('.piece-star[data-hall="fav:' + String(addr).toLowerCase() + '"]');
     if (!node) return;
     token = ++favFlashToken;

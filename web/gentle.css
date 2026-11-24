@@ -66,7 +66,6 @@ body[data-feel="gentle"] button.solid {
 }
 body[data-feel="gentle"] button.danger { border-radius: 999px; }
 body[data-feel="gentle"] .piece-star,
-body[data-feel="gentle"] .piece-star:hover,
 body[data-feel="gentle"] .piece-star:focus-visible {
   text-decoration: none;
   border-radius: 0.4rem;

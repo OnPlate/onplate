@@ -383,6 +383,10 @@ section.plate > img:has(+ .piece-row) { margin-bottom: 0; }
   background: transparent;
   color: inherit;
   transition: opacity 280ms linear;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .piece-star.fade { opacity: 0; }
 .piece-star.piece-word {
@@ -393,9 +397,17 @@ section.plate > img:has(+ .piece-row) { margin-bottom: 0; }
   white-space: nowrap;
   color: #1b2c22;
 }
-.piece-star svg { width: 4rem; height: 4rem; display: block; }
-.piece-star:hover,
+.piece-star svg {
+  width: 4rem;
+  height: 4rem;
+  display: block;
+  /* A tap on the drawing has to hit the button, or iOS never favorites. */
+  pointer-events: none;
+}
 .piece-star:focus-visible { outline: 1px solid #8d7444; outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .piece-star:hover { outline: 1px solid #8d7444; outline-offset: 3px; }
+}
 section.plate h2 .piece-artist {
   font-size: 0.78em;
   color: #4e6356;
