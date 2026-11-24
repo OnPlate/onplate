@@ -3342,11 +3342,13 @@
   }
 
   function paintGasQuote(node, quote) {
-    var lead, tail, strong, keep;
+    var lead, note, tail, strong, keep;
     lead = document.createElement("p");
     strong = document.createElement("strong");
     strong.textContent = "About " + quote.about + " ETH is needed to store the photo pieces.";
     lead.appendChild(strong);
+    note = document.createElement("p");
+    note.textContent = "That figure is storage only. Registration is a separate cost.";
     tail = document.createElement("p");
     tail.id = "quote-keep";
     tail.appendChild(document.createTextNode("Recommend keeping at least "));
@@ -3354,7 +3356,7 @@
     keep.textContent = quote.keep + " ETH";
     tail.appendChild(keep);
     tail.appendChild(document.createTextNode(" in the wallet, in case gas rises while storing and registering."));
-    node.replaceChildren(lead, tail);
+    node.replaceChildren(lead, note, tail);
     paintQuoteCount();
   }
 
