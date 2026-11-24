@@ -163,4 +163,6 @@ node script/anvil-flow.js --factory 0xFACTORY
 
 Sepolia factory `0xA4538835b53e19A5ad2B4b21104FF8DEbAd9B520`. Piece helper `0xdd275A792eD54b723da035717CA16b4c8Ee64367`. Fallback page `0xB32Bfd6F7D7cade3B1156edE9DC4e039E3094752`. A full dummy piece is at `0x222c4513473E2C46FF2420110CAe77a83ac99cDA`. Mainnet waits for the words DEPLOY MAINNET.
 
+Later ideas (clone factory after Glamsterdam, CREATE2 editions, a gated fundraiser) are in `PLANS.md`.
+
 The license is MIT.
