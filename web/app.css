@@ -422,7 +422,8 @@ section.plate > img:has(+ .plate-head) { margin-bottom: 0.35rem; }
   max-width: 100%;
   padding: 0 0 0.9rem;
   scroll-snap-type: x mandatory;
-  touch-action: pan-x;
+  /* Vertical pans chain to the page; the reel itself only scrolls sideways. */
+  touch-action: pan-x pan-y;
   overscroll-behavior-x: contain;
 }
 .studio-reel > section.plate {
