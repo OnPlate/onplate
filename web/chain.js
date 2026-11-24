@@ -902,7 +902,8 @@
       ["nominationRevoked", sel("nominationRevoked")],
       ["vaultedSince", sel("vaultedSince")],
       ["printed", sel("printed")],
-      ["pieceExpect", sel("pieceExpect")]
+      ["pieceExpect", sel("pieceExpect")],
+      ["book", sel("book")]
     ];
     var urls = endpoints(chain);
     var min = need(chain);
@@ -981,7 +982,8 @@
       revoked: flag(fields.nominationRevoked),
       vaultedSince: u256(fields.vaultedSince),
       printed: flag(fields.printed),
-      pieceExpect: u256(fields.pieceExpect)
+      pieceExpect: u256(fields.pieceExpect),
+      book: addrOf(fields.book)
     };
   }
 
@@ -1956,8 +1958,8 @@
     });
   }
 
-  // PhotoAdded records the account that registered the photograph. A later sale
-  // changes the title. This map does not.
+  // PhotoAdded records the signer that registered the photograph. A later sale
+  // changes the title. The book's origin is the artist wallet. This map does not.
   function uploaders(chain, factory) {
     var topic = "0x" + K.hex(K.keccak256(utf8("PhotoAdded(uint256,address,address)")));
     return getLogs(chain, factory, [topic]).then(function (rows) {

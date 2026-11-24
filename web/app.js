@@ -878,7 +878,7 @@
   }
 
   // Distinct on-chain names for this address, oldest plate first.
-  // Grouping is the minting artist. A later title holder does not inherit the name.
+  // Grouping is the artist wallet that prepared the photograph. A later title holder does not inherit the name.
   function namesOnChainFor(addr) {
     var parsed = P.parseAddr(addr);
     var seen = {};
@@ -1028,12 +1028,17 @@
     return P.sameAddr(minterOf(rowData), want);
   }
 
-  // PhotoAdded records the minting artist. artistRecipient is the fallback
-  // when that log has not been read yet. Title is the current holder and is never
-  // treated as the artist.
+  // The artist wallet is the book's origin: the connected address that
+  // prepared the photograph. PhotoAdded names the signer, which may be
+  // the artist keystore. Title is the current holder and is never treated
+  // as the artist.
   function minterOf(rowData) {
     var artist;
     if (!rowData) return "";
+    if (rowData.meta) {
+      artist = P.parseAddr(rowData.meta.origin);
+      if (artist && !zero(artist)) return artist;
+    }
     artist = P.parseAddr(rowData.uploader);
     if (artist && !zero(artist)) return artist;
     if (!rowData.meta) return "";
@@ -1042,7 +1047,7 @@
     return "";
   }
 
-  // The Add page shows photographs this account minted.
+  // The Add page shows photographs this account prepared.
   function uploadedByMe(rowData) {
     if (!mine() || !rowData) return false;
     return P.sameAddr(minterOf(rowData), account);
@@ -1874,6 +1879,15 @@
     }
     fact(facts, "Title owner", rowData.meta.title || "");
     fact(facts, "Current holder", rowData.meta.holder || "");
+    var origin = P.parseAddr(rowData.meta.origin) || minterOf(rowData);
+    var uploader = P.parseAddr(rowData.uploader);
+    if (origin) fact(facts, "Artist wallet", origin);
+    if (uploader && origin && !P.sameAddr(uploader, origin)) {
+      fact(facts, "Registered by", uploader);
+      warn = el("dd", "This keystore stored the photograph for the artist wallet.");
+      warn.className = "wide";
+      facts.appendChild(warn);
+    }
     fact(facts, "Developer royalty", bpsText(rowData.meta.devBps) + " to " + (rowData.meta.devRecipient || ""));
     fact(facts, "Artist royalty", bpsText(rowData.meta.artistBps) + " to " + (rowData.meta.artistRecipient || "none"));
     if (!rowData.meta.printed) fact(facts, "Storage", "Not fully stored yet");
@@ -2060,12 +2074,20 @@
       if (!plate) return null;
       return P.readFields(chain, plate).then(function (fields) {
         var meta = P.parsePlate(fields);
-        return P.pinPlate(chain, factory, plate).then(function (pinned) {
-          var expected = P.factoryOf(chain);
-          var bound = !!expected && P.sameAddr(factory, expected) && P.sameAddr(plate, pinned);
-          return loadImage(factory, plate, meta, bound, pinned);
-        }, function () {
-          return loadImage(factory, plate, meta, false, "");
+        var originP = meta.book
+          ? P.agree(chain, meta.book, P.sel("artist")).then(function (word) {
+              return P.addrOf(word) || "";
+            }).catch(function () { return ""; })
+          : Promise.resolve("");
+        return originP.then(function (origin) {
+          meta.origin = origin;
+          return P.pinPlate(chain, factory, plate).then(function (pinned) {
+            var expected = P.factoryOf(chain);
+            var bound = !!expected && P.sameAddr(factory, expected) && P.sameAddr(plate, pinned);
+            return loadImage(factory, plate, meta, bound, pinned);
+          }, function () {
+            return loadImage(factory, plate, meta, false, "");
+          });
         });
       });
     });
@@ -3721,6 +3743,7 @@
       "7. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
       "8. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
       "9. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",
+      "10. If the script prints that the chain stored this group, or to run the same command again, or that the deployed code did not match this piece, or that a group stored fewer pieces, this is still the same photograph. Run the same command again with --broadcast. Do not change IMAGE, CONFIRM, OWNER, SENDER, or ARTIST. Do not store from the page. The next run continues from the pieces already on the chain. That line is not a failed photograph.",
       "",
       "If this same account already stored some pieces, the script continues from the first missing piece. A progress entry that was never mined is stored again. A different account is refused, because it would store a second copy."
     ];

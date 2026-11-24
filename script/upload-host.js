@@ -533,13 +533,14 @@ function readNeed(chain) {
   return chain === "anvil" ? 1 : 2;
 }
 
-async function agreeRpc(urls, min, method, params) {
+async function agreeRpc(urls, min, method, params, keep) {
   const seen = [];
   let i;
   for (i = 0; i < urls.length; i++) {
     let result;
     try { result = await rpc(urls[i], method, params); }
     catch (e) { continue; }
+    if (typeof keep === "function" && !keep(result)) continue;
     const key = JSON.stringify(result);
     let j;
     for (j = 0; j < seen.length; j++) {
@@ -573,26 +574,60 @@ async function getCode(url, addr) {
   return rpc(url, "eth_getCode", [addr, "latest"]);
 }
 
+function keepLiveCode(result) {
+  const raw = String(result || "").toLowerCase().replace(/^0x/, "");
+  return raw.length > 2;
+}
+
 async function getCodeReads(job, addr) {
-  return agreeRpc(job.reads, job.readNeed, "eth_getCode", [addr, "latest"]);
+  return agreeRpc(job.reads, job.readNeed, "eth_getCode", [addr, "latest"], keepLiveCode);
+}
+
+function sleep(ms) {
+  return new Promise(function (ok) { setTimeout(ok, ms); });
+}
+
+function isLiveCode(code) {
+  return keepLiveCode(code);
+}
+
+async function tryCode(job, addr) {
+  let code = "";
+  try { code = await getCode(job.rpc, addr); } catch (e) {}
+  if (isLiveCode(code)) return code;
+  try {
+    return await getCodeReads(job, addr);
+  } catch (e) {
+    return code || "0x";
+  }
 }
 
 // The sending RPC already has the receipt. Other public nodes can still
 // return empty code for a few hundred milliseconds. Two of those empties
-// would agree and fail the payload check.
-async function waitPieceCode(job, addr, want) {
+// must not agree and fail the payload check.
+async function waitCode(job, addr, until) {
   const started = Date.now();
+  let last = "0x";
   while (Date.now() - started < 20000) {
-    let code = "";
-    try { code = await getCode(job.rpc, addr); } catch (e) {}
-    if (payloadHash(code) === want) return code;
-    try {
-      code = await getCodeReads(job, addr);
-      if (payloadHash(code) === want) return code;
-    } catch (e) {}
-    await new Promise(function (ok) { setTimeout(ok, 400); });
+    let code = "0x";
+    try { code = await tryCode(job, addr); } catch (e) { code = "0x"; }
+    if (code) last = code;
+    if (until(code)) return code;
+    await sleep(400);
   }
-  die("The deployed code did not match this piece.");
+  return last;
+}
+
+async function readChunkCode(job, addr) {
+  return waitCode(job, addr, isChunkCode);
+}
+
+async function waitPieceCode(job, addr, want) {
+  return waitCode(job, addr, function (code) { return payloadHash(code) === want; });
+}
+
+function continueSameCommand() {
+  die("The chain stored this group. Run the same command again to continue. The photograph was not registered.");
 }
 
 async function pieceMaker(job, chunk) {
@@ -626,7 +661,7 @@ async function requireOwnPieces(job) {
   let i;
   for (i = 0; i < job.pieces; i++) {
     if (!job.chunks[i]) continue;
-    const code = await getCodeReads(job, job.chunks[i]);
+    const code = await readChunkCode(job, job.chunks[i]);
     if (!isChunkCode(code)) {
       job.chunks[i] = "";
       continue;
@@ -760,7 +795,7 @@ async function dropMissing(job) {
   let skipped = false;
   for (let i = 0; i < job.chunks.length; i++) {
     if (!job.chunks[i]) continue;
-    const code = await getCodeReads(job, job.chunks[i]);
+    const code = await readChunkCode(job, job.chunks[i]);
     if (!isChunkCode(code)) {
       skipped = true;
       job.chunks[i] = "";
@@ -775,15 +810,15 @@ async function dropMissing(job) {
     await refuseMaker(job, job.chunks[i]);
   }
   if (job.book) {
-    const code = await getCodeReads(job, job.book);
-    if (!code || code === "0x") {
+    const code = await waitCode(job, job.book, isLiveCode);
+    if (!isLiveCode(code)) {
       console.log("The progress file names a book that was never mined. A new book will be opened.");
       job.book = "";
     }
   }
   if (job.plate) {
-    const code = await getCodeReads(job, job.plate);
-    if (!code || code === "0x") {
+    const code = await waitCode(job, job.plate, isLiveCode);
+    if (!isLiveCode(code)) {
       console.log("The progress file names a plate that was never mined. It will be registered again.");
       job.plate = "";
     }
@@ -798,7 +833,7 @@ async function adopt(job) {
     want.push(keccakHex(sliceAt(job.image, i)));
     taken.push(false);
     if (!job.chunks[i]) continue;
-    const code = await getCodeReads(job, job.chunks[i]);
+    const code = await readChunkCode(job, job.chunks[i]);
     if (payloadHash(code) !== want[i]) {
       console.error(job.chunks[i]);
       die("The progress file lists a piece that does not match this photograph. Nothing was sent.");
@@ -813,7 +848,7 @@ async function adopt(job) {
     const payer = OnPlate.addrOf(log.topics[1]);
     const chunk = OnPlate.addrOf(log.topics[3]);
     if (!payer || !chunk) continue;
-    const got = payloadHash(await getCodeReads(job, chunk));
+    const got = payloadHash(await tryCode(job, chunk));
     if (OnPlate.sameAddr(payer, job.sender)) {
       const who = await pieceMaker(job, chunk);
       if (!who || isZero(who) || !OnPlate.sameAddr(who, job.sender)) continue;
@@ -831,7 +866,7 @@ async function adopt(job) {
     const payer = OnPlate.addrOf(log.topics[1]);
     if (!payer || OnPlate.sameAddr(payer, job.sender)) continue;
     const chunk = OnPlate.addrOf(log.topics[3]);
-    const got = payloadHash(await getCodeReads(job, chunk));
+    const got = payloadHash(await tryCode(job, chunk));
     for (let i = 0; i < want.length; i++) {
       if (!taken[i] && want[i] === got) {
         foreign = payer;
@@ -1077,17 +1112,20 @@ async function storeGroups(job, priv) {
       accepted = takePieces(rec, job, i, k);
     }
     if (!rec) die("This group did not fit one transaction.");
+    saveProgress(job);
+    let unread = false;
     for (let j = 0; j < accepted; j++) {
       const want = keccakHex(sliceAt(job.image, i + j));
-      await waitPieceCode(job, job.chunks[i + j], want);
+      const code = await waitPieceCode(job, job.chunks[i + j], want);
+      const got = payloadHash(code);
+      if (got === want) continue;
+      if (isChunkCode(code) && got && got !== want) job.chunks[i + j] = "";
+      unread = true;
     }
     saveProgress(job);
     console.log("stored", countStored(job.chunks));
     console.log("pieces", job.pieces);
-    if (accepted !== k) {
-      console.log("A group stored fewer pieces than it was given. Run the same command again to continue. The photograph was not registered.");
-      die("short");
-    }
+    if (unread || accepted !== k) continueSameCommand();
     i += k;
   }
   return true;
@@ -1188,8 +1226,8 @@ async function sendAll(job, opts) {
   console.log("pieces already on-chain", countStored(job.chunks));
   if (job.book) console.log("book", job.book);
   if (job.plate) {
-    const code = await getCodeReads(job, job.plate);
-    if (!code || code === "0x") {
+    const code = await waitCode(job, job.plate, isLiveCode);
+    if (!isLiveCode(code)) {
       console.log("The progress file names a plate that was never mined. It will be registered again.");
       job.plate = "";
     } else {
