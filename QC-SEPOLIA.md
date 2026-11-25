@@ -21,3 +21,17 @@ Lab: `/tmp/onplate-sepolia-qc`. Artist `0xBc7f9C7F1F2fC0c8bbdaf4b55F89775004b2Fe
 - Packing “Look closer” is only for files large enough to pack. A 10 KB JPEG never shows it.
 - Phone Details wraps long `0x` strings.
 - Agent upload and a full sale path wait on Sepolia ETH in the throwaway wallets.
+
+## Funded pass (2026-11-24 later)
+
+Throwaway artist 0.20 / buyer 0.05 / vault 0.02 ETH. Hosted `app.js?v=19` still used `window.confirm`, which the test browser dismissed, so Store said “Store was cancelled” with no on-page Continue. Store, register, buy, list, park, and withdraw now use the existing `#warn-dialog` (`app.js?v=20`).
+
+Local verify on Sepolia with that dialog: Green Circle stored and registered as plate `0x6743A05064D770DE4d702d5a026aAcC5a0E61b29` (factory photoAt 4).
+
+## Sale pass
+
+Naive tester listed Green Circle at 0.001 ETH, bought it as `0x2103…D11a`, parked it at vault `0xB21d…9EfB`, and returned it to the buyer. Title is now the buyer. Mailbox still named the vault. Artist claimable ~0.00097 ETH (not withdrawn in this pass).
+
+`app.js?v=21` clears the “you just bought / listed / returned” banners when the connected account changes.
+
+Still open after the sale pass: List/Park look like text links; Buy lives in collapsed Actions without the price on the button; Return asks twice and the first dialog is about nomination; “named vault” jargon; private Buyer field has almost no help; phone Details wrap hex; repeating Details/List/Park labels; Withdraw after a sale is easy to miss; packing Look closer only for larger files; Favorite is the unlabeled Pepe.

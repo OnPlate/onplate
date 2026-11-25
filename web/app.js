@@ -677,7 +677,7 @@
   function connect() {
     var eth = walletProvider();
     function asked(list) {
-      account = list && list[0] ? list[0] : "";
+      adoptAccount(list && list[0] ? list[0] : "");
       paintAccount();
       refresh();
       openPlans();
@@ -716,9 +716,18 @@
     });
   }
 
+  function adoptAccount(next) {
+    var prev = account;
+    account = next || "";
+    if (!prev && !account) return;
+    if (prev && account && P.sameAddr(prev, account)) return;
+    justBought = "";
+    say("");
+  }
+
   function disconnect() {
     P.setOff(true);
-    account = "";
+    adoptAccount("");
     paintAccount();
     say("Disconnected.");
     refresh();
@@ -739,7 +748,7 @@
       paintAccount();
       return;
     }
-    account = next;
+    adoptAccount(next);
     paintAccount();
     factory = P.factoryOf(chain);
     if (factory) fillRoyalties(factory);
