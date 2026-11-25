@@ -647,7 +647,7 @@
     keep = cost * 2n;
     // Amounts below 0.000001 ETH use 12 decimal places.
     places = cost > 0n && cost < 10n ** 12n ? 12 : 6;
-    return { about: ethUp(cost, places), keep: ethUp(keep, places) };
+    return { about: ethUp(cost, places), keep: ethUp(keep, places), costWei: cost, keepWei: keep };
   }
 
   // The higher of the node's suggested price, the latest base fee, and 1.5 gwei.

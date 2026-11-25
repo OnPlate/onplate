@@ -120,7 +120,24 @@ button[disabled] { opacity: 0.4; cursor: default; }
   margin: 2rem 0 0.6rem;
 }
 button.solid { padding: 0.7rem 1.15rem; margin: 1.4rem 0 0.35rem; }
-#steps button.solid, #register-steps button.solid { font-size: 1.08rem; padding: 0.95rem 1.5rem; }
+#steps button.solid, #register-steps button.solid {
+  background: #1f3a2c;
+  color: #f4f1ea;
+  text-decoration: none;
+  font-size: 1.08rem;
+  padding: 0.95rem 1.5rem;
+  margin: 0.85rem 0 0.35rem;
+}
+#artist-use {
+  display: block;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  background: transparent;
+  color: #4e6356;
+  font-size: 0.92rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
 .wallet-top #connect.solid { margin: 0; padding: 0.45rem 0.9rem; }
 #connect[hidden] { display: none; }
 #session-on {
@@ -352,6 +369,12 @@ html.pack-open body {
 #fields { max-width: 32rem; margin-top: 1.6rem; }
 #dev:empty { display: none; }
 #dev { margin: 1.6rem 0 0; }
+#photos > h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0.35rem 0 0.85rem;
+  color: #1b2c22;
+}
 #photos { background: #f3f0e6; }
 section.plate { margin: 0 0 4.5rem; }
 section.plate > img { display: block; width: 100%; height: auto; margin: 0 0 1.4rem; }

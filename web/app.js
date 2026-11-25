@@ -36,6 +36,7 @@
   var chainDev = null;
   var chainArtist = null;
   var quoteAbout = "";
+  var lastFundsText = "";
   var planShape = null;
   var commandOpen = false;
   var chainChunks = null;
@@ -475,6 +476,10 @@
     if (message === "denied") return "This account cannot add a photograph on this factory.";
     if (message === "account" || message === "wallet") return "Connect the account that should send this.";
     if (message === "history") return "The chain history could not be read, so nothing was sent.";
+    if (message === "funds") return lastFundsText || "This wallet does not have enough ETH to store the photograph.";
+    if (/insufficient funds|upfront cost|exceeds.*balance/i.test(message)) {
+      return lastFundsText || "This wallet does not have enough ETH to send the transaction.";
+    }
     if (/reject|denied|cancel/i.test(message)) return "The wallet did not send it.";
     return "The transaction was not sent.";
   }
@@ -1362,12 +1367,24 @@
     });
   }
 
+  function viewHeading() {
+    if (!viewing) return "";
+    if (collectionOn()) return "My Photographs";
+    if (saleOn()) return "For Sale";
+    if (favoritesOn() && artistParam()) return "Favorites from this artist";
+    if (favoritesOn()) return "Favorites";
+    if (artistParam()) return "Photographs by this artist";
+    return "";
+  }
+
   function draw(list, claims) {
     var previous = urls;
-    var empty, i;
+    var empty, i, heading;
     keptUrls = previous;
     urls = {};
     photos.replaceChildren();
+    heading = viewHeading();
+    if (heading) photos.appendChild(el("h2", heading));
     if (!viewing) {
       if (hall) drawBench(list, claims);
       else drawStudio(list, claims);
@@ -1969,8 +1986,10 @@
     if (!rowData.meta.printed) fact(facts, "Storage", "Not fully stored yet");
     if (rowData.meta.price > 0n && !rowData.meta.parked) {
       fact(facts, "Listing", "Listed for " + P.weiToEth(rowData.meta.price) + " ETH");
+    } else if (owned(rowData)) {
+      fact(facts, "Listing", "Not for sale. Open Actions to list it.");
     } else {
-      fact(facts, "Listing", "Not listed.");
+      fact(facts, "Listing", "Not for sale.");
     }
     if (rowData.meta.parked) fact(facts, "Parked", "at " + (rowData.meta.mailbox || ""));
     else if (rowData.meta.mailbox) fact(facts, "Vault", "named " + rowData.meta.mailbox + ". The photograph is not parked.");
@@ -2216,6 +2235,11 @@
     }
     statusValue(factoryLine, "Factory: " + factory);
     say("");
+    if (viewing && photos && !loaded.length && (factoryCount === null || factoryCount > 0n)) {
+      photos.replaceChildren();
+      photos.appendChild(el("p", "Loading photographs…")).className = "quiet";
+      photos.lastChild.id = "photos-loading";
+    }
     fillRoyalties(factory).then(function () {
       if (mineTicket !== ticket) return null;
       return P.agree(chain, factory, P.sel("photoCount"));
@@ -3525,9 +3549,57 @@
     paintQuoteCount();
   }
 
+  function fundsSentence(have, quote) {
+    var line = "This wallet has " + P.weiToEth(have) + " ETH. Storing needs about " + quote.about + " ETH, and the page recommends keeping at least " + quote.keep + " ETH.";
+    if (chain === "sepolia") line += " That has to be Sepolia ETH, not mainnet ETH.";
+    return line;
+  }
+
+  function paintHaveLine(haveWei, quote) {
+    var node = document.getElementById("gas-quote");
+    var line = document.getElementById("quote-have");
+    var text;
+    if (!node) return;
+    if (haveWei == null) {
+      if (line) line.remove();
+      return;
+    }
+    text = "This wallet holds " + P.weiToEth(haveWei) + " ETH.";
+    if (quote && quote.keepWei && haveWei < quote.keepWei) {
+      text += " That is short of the " + quote.keep + " ETH the page recommends keeping.";
+    }
+    if (chain === "sepolia") text += " Use Sepolia ETH, not mainnet ETH.";
+    if (!line || line.parentNode !== node) {
+      if (line) line.remove();
+      line = el("p");
+      line.id = "quote-have";
+      node.appendChild(line);
+    }
+    line.textContent = text;
+    line.className = (quote && quote.costWei && haveWei < quote.costWei) ? "step-error" : "help";
+  }
+
+  function ensureStoreFunds(pieceCount) {
+    var addr = P.parseAddr(account);
+    var n = pieceCount == null ? remainingPieces() : pieceCount;
+    lastFundsText = "";
+    if (!addr) return Promise.reject(new Error("account"));
+    if (!n) return Promise.resolve();
+    return Promise.all([P.balanceOf(chain, addr), P.chainGasPrice(chain)]).then(function (pair) {
+      var have = pair[0];
+      var quote = P.storeQuote(n, pair[1], chain);
+      paintHaveLine(have, quote);
+      if (have < quote.costWei) {
+        lastFundsText = fundsSentence(have, quote);
+        throw new Error("funds");
+      }
+    });
+  }
+
   function showQuote(count, price, gen) {
     var node = document.getElementById("gas-quote");
     var quote;
+    var addr;
     if (gen !== quoteGen || !node) return;
     if (price == null) {
       quoteAbout = "";
@@ -3543,6 +3615,13 @@
     paintGasQuote(node, quote);
     paintStatus();
     node.scrollIntoView({ block: "nearest" });
+    addr = P.parseAddr(account);
+    if (addr) {
+      P.balanceOf(chain, addr).then(function (have) {
+        if (gen !== quoteGen) return;
+        paintHaveLine(have, quote);
+      }, function () {});
+    }
   }
 
   function finishPrepare(plan, sentence, gen, pricePromise) {
@@ -3662,7 +3741,7 @@
       prepareNote("Royalties are percents with up to two decimals, and their sum cannot pass 100.");
       return;
     }
-    if (artistBps > 0 && (!artist || zero(artist))) { prepareNote("Name the artist recipient."); return; }
+    if (artistBps > 0 && (!artist || zero(artist))) { prepareNote("Enter an Ethereum address (0x…) for the royalty recipient."); return; }
     if (artistBps === 0 && !artist) artist = "0x0000000000000000000000000000000000000000";
     if (!file) { prepareNote("Choose a photograph."); return; }
     if (sizeGate) { prepareNote(sizeGate); return; }
@@ -3964,7 +4043,8 @@
     var text = scriptCommand();
     var note = done || "Command copied.";
     function copied() {
-      hideCommand();
+      revealCommand();
+      showCopiedText(text, "This is the command that was copied. Select it here if your clipboard is empty.");
       flashCopyButton(button, note);
     }
     function fallback() {
@@ -4019,6 +4099,8 @@
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       holder.remove();
       flashCopyButton(button, ok ? note : "Select the text and copy it.");
+      if (ok) showCopiedText(text);
+      else showCopiedText(text, "Copy did not reach the clipboard. Select the text below.");
     }
     if (!text || /(?:^|\s)--private-key(?:\s|$)|PRIVATE_KEY=/.test(text)) {
       flashCopyButton(button, "The text was not copied.");
@@ -4027,10 +4109,23 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
         flashCopyButton(button, note);
+        showCopiedText(text);
       }, fallback);
       return;
     }
     fallback();
+  }
+
+  function showCopiedText(text, hintLine) {
+    var pre = document.getElementById("copied-text");
+    var hint = document.getElementById("copied-hint");
+    if (!pre || !text) return;
+    pre.hidden = false;
+    pre.textContent = text;
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = hintLine || "This is what was copied. Select it here if your clipboard is empty.";
+    }
   }
 
   // Suggests the file name only. The browser chooses the folder.
@@ -4377,6 +4472,7 @@
       if (left) {
         storeAllBtn = button("Store every piece", storeAll, storeAllTitle());
         storeAllBtn.id = "store-every";
+        storeAllBtn.className = "solid";
         if (blocked) {
           storeAllBtn.disabled = true;
           storeAllBtn.title = blocked;
@@ -4388,6 +4484,7 @@
           storeNext,
           storePieceTitle()
         );
+        nextBtn.className = "solid";
         if (blocked) {
           nextBtn.disabled = true;
           nextBtn.title = blocked;
@@ -4454,11 +4551,16 @@
         showUploadError(OPEN_SENTENCE);
         return;
       }
-      if (!window.confirm(ask)) return;
-      uploadError("");
-      uploadNote("Preparing the storage transaction.");
-      runRemaining(false);
-    }, function (err) {
+      return ensureStoreFunds().then(function () {
+        if (!window.confirm(ask)) {
+          uploadNote("Store was cancelled.");
+          return;
+        }
+        uploadError("");
+        uploadNote("Preparing the storage transaction.");
+        runRemaining(false);
+      });
+    }).catch(function (err) {
       showUploadError(failText(err));
     });
   }
@@ -4474,9 +4576,15 @@
       return mayAdd(factory);
     }).then(function (ok) {
       if (!pieceCapOk(ok, job.chunks.length)) throw new Error("open");
-      if (!quiet && !window.confirm("Store piece " + (index + 1) + " of " + job.chunks.length + "? This does not register the photograph.")) {
-        return "cancel";
-      }
+      return ensureStoreFunds(1).then(function () {
+        if (!quiet && !window.confirm("Store piece " + (index + 1) + " of " + job.chunks.length + "? This does not register the photograph.")) {
+          uploadNote("Store was cancelled.");
+          return "cancel";
+        }
+        return null;
+      });
+    }).then(function (cancelled) {
+      if (cancelled === "cancel") return "cancel";
       busy = true;
       paintProgress();
       if (!P.sameAddr(job.wallet, account)) throw new Error("account");
@@ -4829,6 +4937,30 @@
   listen("artist", "input", function () {
     cleanArtistField(this);
   });
+  (function wireRecipientHelp() {
+    var input = document.getElementById("artist");
+    var field, help, btn;
+    if (!input) return;
+    field = input.closest ? input.closest(".field") : input.parentNode;
+    help = field && field.querySelector ? field.querySelector(".help") : null;
+    if (help) {
+      help.textContent = "Paste an Ethereum address starting with 0x. It receives the artist royalty. Required when that royalty is above zero.";
+    }
+    if (document.getElementById("artist-use")) return;
+    btn = el("button", "Use the connected wallet");
+    btn.type = "button";
+    btn.id = "artist-use";
+    btn.addEventListener("click", function () {
+      var parsed = P.parseAddr(account);
+      if (!parsed) {
+        prepareNote("Connect an account first.");
+        return;
+      }
+      input.value = parsed;
+      prepareNote("");
+    });
+    input.insertAdjacentElement("afterend", btn);
+  })();
   listen("prepare", "click", function () {
     if (preparing || busy) return;
     prepare();

@@ -13,7 +13,7 @@
 <meta name="twitter:title" content="OnPlate">
 <meta name="twitter:description" content="OnPlate is a factory for 1/1 on-chain photographs. The full file sits in chunk contracts on the same chain.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="app.css?v=17">
+<link rel="stylesheet" href="app.css?v=18">
 <link rel="stylesheet" href="hall.css">
 </head>
 <body data-layout="hall">
@@ -106,7 +106,7 @@
       </div>
       <div class="field">
         <label for="artist">Recipient</label>
-        <p class="help">Receives the artist royalty. Required when that royalty is above zero.</p>
+        <p class="help">Paste an Ethereum address starting with 0x. It receives the artist royalty. Required when that royalty is above zero.</p>
         <input id="artist" spellcheck="false">
       </div>
       <p id="dev" class="quiet"></p>
@@ -133,6 +133,8 @@
             <p class="help">Start here if your machine does not have Foundry yet. Paste the copied prompt into an agent that can use a terminal (e.g. Grok Build, Claude Code, etc.). The agent will install it and create a keystore named “onplate.” After that, send only the new 0x address in a direct message on X to @A_is_A so you can be invited. Do not send the password or the keystore file.</p>
           </div>
           <div id="agent-actions"></div>
+          <pre id="copied-text" class="command" hidden></pre>
+          <p id="copied-hint" class="help" hidden></p>
         </details>
         <details id="more" class="more">
           <summary>Details</summary>
@@ -211,7 +213,7 @@
 <script src="keccak.js"></script>
 <script src="png.js"></script>
 <script src="bytecode.js"></script>
-<script src="chain.js?v=15"></script>
-<script src="app.js?v=18"></script>
+<script src="chain.js?v=16"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
