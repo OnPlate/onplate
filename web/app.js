@@ -2381,6 +2381,11 @@
     });
   }
 
+  function confirmThen(text) {
+    if (document.getElementById("warn-dialog")) return warnThen(text);
+    return window.confirm(text) ? Promise.resolve() : Promise.reject(new Error("cancel"));
+  }
+
   function mayNominate(rowData) {
     var meta = rowData && rowData.meta;
     if (!armed(rowData) || !mine() || !meta || !meta.nominationAllowed || !meta.parked || meta.nominated || meta.revoked) return false;
@@ -2448,9 +2453,8 @@
         return warnThen("This sale is below the original price. It will permanently remove this plate’s ability to nominate. This cannot be undone.", true);
       }
     }).then(function () {
-      if (!window.confirm("Buy this photograph for " + P.weiToEth(price) + " ETH?")) {
-        throw new Error("cancel");
-      }
+      return confirmThen("Buy this photograph for " + P.weiToEth(price) + " ETH?");
+    }).then(function () {
       return P.listedPair(chain, rowData.plate);
     }).then(function (again) {
       if (again !== price) throw new Error("price");
@@ -2514,8 +2518,9 @@
       return;
     }
     say("");
-    if (!window.confirm("List this photograph for " + P.weiToEth(wei) + " ETH?")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("List this photograph for " + P.weiToEth(wei) + " ETH?").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, {
         kind: "list",
         data: P.callData("list", P.pad256(wei)),
@@ -2526,8 +2531,9 @@
   }
 
   function onCancel(rowData) {
-    if (!window.confirm("Cancel the listing?")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Cancel the listing?").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, { kind: "cancel", data: P.sel("cancel"), to: pin.plate, from: account });
     }).then(sent).then(function () { say("The listing was cancelled."); }).catch(fail);
   }
@@ -2539,8 +2545,9 @@
       return;
     }
     say("");
-    if (!window.confirm("Only " + buyer + " may buy this photograph?")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Only " + buyer + " may buy this photograph?").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, {
         kind: "setAllowedBuyer",
         data: P.callData("setAllowedBuyer", P.pad256(BigInt(buyer))),
@@ -2554,8 +2561,9 @@
 
   function onAnyone(rowData) {
     var buyer = "0x0000000000000000000000000000000000000000";
-    if (!window.confirm("Allow any buyer?")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Allow any buyer?").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, {
         kind: "setAllowedBuyer",
         data: P.callData("setAllowedBuyer", P.pad256(BigInt(buyer))),
@@ -2574,8 +2582,9 @@
       return;
     }
     say("");
-    if (!window.confirm("Park this photograph at " + vault + "? Once sent the photo can only be retrieved by having the vault send it back to this wallet from which it came. Sending to an address you do not control could result in permanent locking of the photo.")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Park this photograph at " + vault + "? Once sent the photo can only be retrieved by having the vault send it back to this wallet from which it came. Sending to an address you do not control could result in permanent locking of the photo.").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       if (P.sameAddr(vault, pin.plate) || P.sameAddr(vault, pin.factory)) throw new Error("address");
       return P.send(chain, {
         kind: "setMailbox",
@@ -2598,9 +2607,8 @@
         return warnThen("Leaving the vault now will restart the 30-day waiting period. The nomination potential is not lost, but the clock starts over the next time it is vaulted.", false);
       }
     }).then(function () {
-      if (!window.confirm("Return the photograph to the title holder? Transfers are not allowed to any other address.")) {
-        throw new Error("cancel");
-      }
+      return confirmThen("Return the photograph to the title holder? Transfers are not allowed to any other address.");
+    }).then(function () {
       return gate(rowData);
     }).then(function (pin) {
       return P.send(chain, { kind: "release", data: P.sel("release"), to: pin.plate, from: account });
@@ -2637,15 +2645,17 @@
   }
 
   function onClear(rowData) {
-    if (!window.confirm("Clear the named vault? The photograph stays with the title holder.")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Clear the named vault? The photograph stays with the title holder.").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, { kind: "clearMailbox", data: P.sel("clearMailbox"), to: pin.plate, from: account });
     }).then(sent).then(function () { say("The vault name was cleared."); }).catch(fail);
   }
 
   function onWithdraw(rowData) {
-    if (!window.confirm("Withdraw your balance from this photograph?")) return;
-    gate(rowData).then(function (pin) {
+    confirmThen("Withdraw your balance from this photograph?").then(function () {
+      return gate(rowData);
+    }).then(function (pin) {
       return P.send(chain, { kind: "withdraw", data: P.sel("withdraw"), to: pin.plate, from: account });
     }).then(sent).then(function () { say("The balance was withdrawn."); }).catch(fail);
   }
@@ -4552,15 +4562,17 @@
         return;
       }
       return ensureStoreFunds().then(function () {
-        if (!window.confirm(ask)) {
-          uploadNote("Store was cancelled.");
-          return;
-        }
+        return confirmThen(ask);
+      }).then(function () {
         uploadError("");
         uploadNote("Preparing the storage transaction.");
         runRemaining(false);
       });
     }).catch(function (err) {
+      if (err && err.message === "cancel") {
+        uploadNote("Store was cancelled.");
+        return;
+      }
       showUploadError(failText(err));
     });
   }
@@ -4577,14 +4589,10 @@
     }).then(function (ok) {
       if (!pieceCapOk(ok, job.chunks.length)) throw new Error("open");
       return ensureStoreFunds(1).then(function () {
-        if (!quiet && !window.confirm("Store piece " + (index + 1) + " of " + job.chunks.length + "? This does not register the photograph.")) {
-          uploadNote("Store was cancelled.");
-          return "cancel";
-        }
-        return null;
+        if (quiet) return;
+        return confirmThen("Store piece " + (index + 1) + " of " + job.chunks.length + "? This does not register the photograph.");
       });
-    }).then(function (cancelled) {
-      if (cancelled === "cancel") return "cancel";
+    }).then(function () {
       busy = true;
       paintProgress();
       if (!P.sameAddr(job.wallet, account)) throw new Error("account");
@@ -4605,6 +4613,14 @@
     }).catch(function (err) {
       var sentence = gateSentence(err && err.message);
       feeNote("");
+      if (err && err.message === "cancel") {
+        busy = false;
+        if (!quiet) {
+          uploadNote("Store was cancelled.");
+          paintSteps();
+        }
+        return;
+      }
       if (sentence) {
         busy = false;
         dropRejectedPlan();
@@ -4671,19 +4687,19 @@
     return guardPlan(job).then(function () {
       return mayAdd(factory);
     }).then(function (ok) {
-      var hooks;
       if (!pieceCapOk(ok, job.chunks.length)) throw new Error("open");
-      if (!quiet && !window.confirm(registerAsk())) {
-        return "cancel";
-      }
+      if (quiet) return;
+      return confirmThen(registerAsk());
+    }).then(function () {
+      var hooks;
       registerError("");
       busy = true;
       if (!P.sameAddr(P.factoryOf(chain), factory) || !P.sameAddr(job.factory, factory)) throw new Error("to");
-        hooks = feeHooks();
-        hooks.onLink = function (done, total) {
-          linkNote = "Linking pieces: " + done + " of " + total + ".";
-          paintProgress();
-        };
+      hooks = feeHooks();
+      hooks.onLink = function (done, total) {
+        linkNote = "Linking pieces: " + done + " of " + total + ".";
+        paintProgress();
+      };
       return P.registerPlanned(chain, job, hooks);
     }).then(function (result) {
       var plate;
@@ -4701,6 +4717,7 @@
     }).catch(function (err) {
       var sentence = gateSentence(err && err.message);
       busy = false;
+      if (err && err.message === "cancel") return;
       if (sentence) {
         dropRejectedPlan();
         prepareNote(sentence);
