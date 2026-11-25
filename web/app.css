@@ -777,6 +777,15 @@ footer.foot {
 footer.foot h2 { font-size: 0.75rem; margin: 0.85rem 0 0.2rem; letter-spacing: 0.04em; }
 footer.foot h2:first-child { margin-top: 0; }
 footer.foot .quiet { max-width: 28rem; margin: 0; }
+footer.foot .byline {
+  margin: 1.1rem 0 0;
+  color: #4e6356;
+}
+footer.foot .byline a {
+  color: inherit;
+  text-decoration-color: #8d7444;
+  text-underline-offset: 0.18em;
+}
 .save-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.85rem; margin-top: 0.45rem; }
 #save-note { color: #4e6356; }
 #save-note:empty { display: none; }
