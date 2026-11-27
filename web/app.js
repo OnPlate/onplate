@@ -3220,7 +3220,7 @@
       img.alt = packTitle(key);
     }
     if (cap) cap.textContent = packDetail(opt.file, opt.w, opt.h);
-    if (useBtn) useBtn.textContent = key === packPick ? "Using this file" : "Use this file";
+    if (useBtn) useBtn.textContent = "Use this file";
     if (dialog.showModal) {
       dialog.showModal();
       lockPageForPack();
