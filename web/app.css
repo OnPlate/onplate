@@ -896,17 +896,6 @@ main.hero .lede {
   font-size: 1.15rem;
   max-width: 38rem;
 }
-main.hero .hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.85rem 1.4rem;
-  margin: 1.4rem 0 0;
-}
-main.hero .hero-actions a.solid {
-  text-decoration: none;
-  padding: 0.45rem 1.05rem;
-}
 .hero-who,
 .hero-examples {
   list-style: none;
