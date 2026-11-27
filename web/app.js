@@ -198,7 +198,7 @@
     return account && !P.isOff();
   }
 
-  var OPEN_SENTENCE = "A photograph larger than 4 pieces needs an invitation. Send this keystore’s 0x address in a direct message on X to @A_is_A.";
+  var OPEN_SENTENCE = "To store a photograph larger than 4 pieces, send this account’s public address in a direct message on X to @A_is_A for whitelist / boutique curation. That raises the upload size.";
 
   function mayAdd(factory) {
     if (!factory || !mine()) return Promise.resolve(false);
@@ -2921,7 +2921,7 @@
       if (packedFit) {
         msg += addAllowed
           ? " Choose a packed copy that fits."
-          : " Choose a packed copy that fits, or connect a whitelisted account.";
+          : " Choose a packed copy that fits, or write to @A_is_A to raise the upload size.";
       } else if (packing) {
         msg += " Packing may still produce a copy that fits.";
       } else {
@@ -3911,14 +3911,14 @@
       "Use the terminal session you already have. I will type the keystore password there when you add --broadcast. Do not open a new window, a dialog, or a browser. Do not ask me to paste the password into the chat. Do not put the password on a command line, in a file, or in an environment variable. Do not use --password, --password-file, /dev/stdin, or a tmpfs file for the password. Do not read or print the private key. If the send prints that one step is left, the check already worked. Show me that next-step command as the one action I still take. Do not describe it as a failure. I will copy it into a new terminal window and type the password once.",
       "",
       "1. If `forge --version` fails, install Foundry. Confirm that `forge --version` works before anything else.",
-      "2. If there is no Foundry keystore named \"onplate\", create it. I will type the password when asked. When forge prints the new address that starts with 0x, show me that address. Tell me to copy only that 0x address and send it in a direct message on X to @A_is_A so this keystore can be invited. Do not send the password, the keystore file, a seed phrase, or the private key. Then stop. Do not send any transactions.",
+      "2. If there is no Foundry keystore named \"onplate\", create it. I will type the password when asked. When forge prints the new address that starts with 0x, show me that address. Tell me to copy only that 0x address. If this photograph is larger than 4 pieces, tell me to send that address in a direct message on X to @A_is_A for whitelist / boutique curation, which raises the upload size. Do not send the password, the keystore file, a seed phrase, or the private key. Then stop. Do not send any transactions.",
       "3. If Foundry and the onplate keystore are already on this machine, skip install and keystore create. Continue with this photograph.",
       "4. Copy the photograph from the unzipped kit to the IMAGE path under testing images/ in the OnPlate project. Use that file. If IMAGE ends with -closer.jpg or -one-store.jpg, that is a packed JPEG from the page. It is not the original camera file, and it is not on disk until this download. Do not use a different photograph. Do not read a browser profile, IndexedDB, or cookies to recover the file. Do not move the thumbnail.",
       "5. Change the THUMB= line to the full path of upload-thumb.png from the unzipped kit.",
       "6. SENDER must be the 0x address of the keystore named \"onplate\". If you already know that address on this machine, use it. Do not run `cast wallet address` and do not decrypt the keystore to look it up. If you do not already know the address, ask me for the 0x address of the onplate keystore only. Then set SENDER to that address. Leave OWNER as written. OWNER is the wallet that will own the photograph. The keystore signs and pays, and the registration gives the photograph to OWNER in that same step. Leave ARTIST as written. ARTIST is only the royalty recipient. Do not ask me for OWNER or ARTIST. Do not set a shell variable named HOME to an Ethereum address. HOME is the Unix home directory.",
       "7. Run the node command once. It has no --broadcast, so the photograph is only checked and the password is not asked. Show me the content hash it prints near the start. If that hash matches CONFIRM, run the same command again with --broadcast added. You start that second run. I will type the password in the terminal once for that send. That one send stores every remaining group and registers the photograph. If the hash does not match, stop. If the send prints One step left, show me the command it printed. That is the next action, and the check already worked. I copy that command into a new terminal window.",
       "8. Do not use a password file to skip the prompt. Do not wrap this send in forge. Do not add a trace dump of the photograph. If the keystore is not at ~/.foundry/keystores/onplate, pass --keystore with the full path to that file. Do not set HOME to an address.",
-      "9. If the script says a photograph larger than 4 pieces needs an invitation, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue. If this keystore has not been invited yet, send only its 0x address in a direct message on X to @A_is_A. Do not send the password, the keystore file, or the private key.",
+      "9. If the script says a photograph larger than 4 pieces needs whitelist / boutique curation, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue. If this photograph is larger than 4 pieces, tell me to send only the keystore’s 0x address in a direct message on X to @A_is_A for whitelist / boutique curation. Do not send the password, the keystore file, or the private key.",
       "10. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
       "11. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
       "12. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",

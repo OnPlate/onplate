@@ -11,6 +11,7 @@ Provenance here means a surviving original plate, negative, or NASA frame whose 
 | `lange-migrant-mother-open.jpg` | Migrant Mother (Florence Owens Thompson) | Dorothea Lange for the U.S. Farm Security Administration | 1936 | An iconic government negative whose copies rarely name the FSA plate. | Library of Congress / Wikimedia Commons | Public domain (U.S. government work) |
 | `nasa-earthrise-open.jpg` | Earthrise (AS8-14-2383) | William Anders / NASA Apollo 8 | 1968 | A NASA Hasselblad frame republished worldwide; the original magazine is in NASA’s archive. | NASA image AS8-14-2383 | Public domain (NASA) |
 | `hine-addie-card-open.jpg` | Addie Card, 12 years old, spinner | Lewis Hine for the National Child Labor Committee | 1910 | A numbered NCLC plate. Reproductions often drop the caption and plate number. | Library of Congress / Wikimedia Commons, `AddieCard05282vLewisHine.jpg` | Public domain (U.S.) |
+| `atkins-dictyota-open.jpg` | Dictyota dichotoma, in the young state and in fruit | Anna Atkins, from *Photographs of British Algae: Cyanotype Impressions* | 1843 | The first book made of photographs. About a dozen copies survive; most people only see a reproduction. | Wikimedia Commons / New York Public Library, `Anna_Atkins_algae_cyanotype.jpg` | Public domain |
 
 Local copies of Chaise and the Hawaii test photograph packed to the same cap:
 

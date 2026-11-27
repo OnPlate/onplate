@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self' https: http://127.0.0.1:8545 http://localhost:8545">
 <title>OnPlate</title>
-<meta name="description" content="OnPlate stores a digital photograph on Ethereum so its file, hash, and title can be read from the chain.">
+<meta name="description" content="OnPlate keeps a photograph in a public record so its file, fingerprint, and holder can be read later — permanent provenance for the history of the work.">
 <meta property="og:title" content="OnPlate">
-<meta property="og:description" content="OnPlate stores a digital photograph on Ethereum so its file, hash, and title can be read from the chain.">
+<meta property="og:description" content="OnPlate keeps a photograph in a public record so its file, fingerprint, and holder can be read later — permanent provenance for the history of the work.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="OnPlate">
-<meta name="twitter:description" content="OnPlate stores a digital photograph on Ethereum so its file, hash, and title can be read from the chain.">
+<meta name="twitter:description" content="OnPlate keeps a photograph in a public record so its file, fingerprint, and holder can be read later — permanent provenance for the history of the work.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="app.css?v=19">
+<link rel="stylesheet" href="app.css?v=20">
 </head>
 <body data-venue="about">
 <script src="frame.js"></script>
@@ -27,10 +27,12 @@
   </nav>
 </header>
 <main class="hero">
-  <p class="kicker">A factory for 1/1 photographs</p>
-  <h1>The file sits on the chain.</h1>
-  <p class="lede">OnPlate registers a digital photograph so a later viewer can prove which bytes were stored, who holds title, and whether the work was parked for safekeeping. Nothing in that file lives on IPFS or a private server.</p>
-  <p>This is a provenance tool for a photograph, not a marketplace for a pointer. Photo archives, university collections, galleries, and independent artists can mount a work once and keep the original bytes readable from Ethereum.</p>
+  <p class="kicker">A public record for a photograph</p>
+  <h1>Permanent provenance of art history.</h1>
+  <p class="lede">I built OnPlate because a photograph is a file, and a file that lives on someone’s website is only as lasting as that website. Provenance is the record of what a work is, and who has held it. I want that record to outlast a page.</p>
+  <p>When you walk into a museum, the object is there. You can stand in front of the paper, the plate, the print. Online we have mostly accepted a weaker version of that: a picture that points somewhere else, and a history that can be moved, copied, or taken down without the original file coming with it.</p>
+  <p>OnPlate keeps the photograph itself on Ethereum, a public record anyone can read. All of it sits in one place: the file, a fingerprint of that file, the name of the work, and who holds it. A later viewer does not have to trust this site. They can pull the picture back from the record itself.</p>
+  <p>This is a provenance tool. Photo archives, university collections, galleries, and independent artists can mount a work once and keep the original file readable for as long as that public record is kept.</p>
   <p class="hero-actions">
     <a class="solid" href="add.html">Add a photograph</a>
     <a href="view.html">View the photographs</a>
@@ -39,17 +41,17 @@
   <h2>Who it is for</h2>
   <ul class="hero-who">
     <li><strong>Photo archives</strong> that need a public, durable copy of a digital master whose paper or plate original is unique, lost, or hard to visit.</li>
-    <li><strong>University collections</strong> that teach with scans and want the file, the hash, and the title in one place a student can check.</li>
-    <li><strong>Galleries</strong> that sell or loan a 1/1 digital print and need title that cannot be listed on another market without the artist’s own plate.</li>
-    <li><strong>Independent artists</strong> who want the photograph itself on-chain, with a vault that can only send it home.</li>
+    <li><strong>University collections</strong> that teach with scans and want the file, its fingerprint, and who holds it in one place a student can check.</li>
+    <li><strong>Galleries</strong> that sell or loan a single digital print and need a holder that stays with that print, not with a listing that can wander off.</li>
+    <li><strong>Independent artists</strong> who want the photograph itself kept, and a way to park it that can only send it home.</li>
   </ul>
 
-  <h2>What four pieces can hold</h2>
-  <p>Anyone may register a photograph of at most 73,728 bytes — four full on-chain pieces. A larger file needs an invitation. These historic public-domain photographs are packed to that open size so the limit is visible, not abstract. The originals are unique plates, government negatives, or NASA frames; the copies people share often lose that home.</p>
+  <h2>What anyone may store</h2>
+  <p>Anyone may store a photograph up to about 74 KB — a small JPEG, on purpose, so you can begin right away. The pictures below are historic public-domain photographs packed down to that size so you can see the limit with your eyes, not as a number. The originals are unique plates, government negatives, or NASA frames. The copies people share often lose that home.</p>
   <ul class="hero-examples">
     <li>
       <figure>
-        <img src="examples/niepce-window-le-gras-open.jpg" alt="View from the Window at Le Gras, packed to the open-tier size">
+        <img src="examples/niepce-window-le-gras-open.jpg" alt="View from the Window at Le Gras, packed to the open size">
         <figcaption>
           <strong>View from the Window at Le Gras</strong>
           Nicéphore Niépce, c. 1826–27. The earliest surviving camera photograph. The pewter plate is unique.
@@ -58,7 +60,7 @@
     </li>
     <li>
       <figure>
-        <img src="examples/daguerre-boulevard-du-temple-open.jpg" alt="Boulevard du Temple, packed to the open-tier size">
+        <img src="examples/daguerre-boulevard-du-temple-open.jpg" alt="Boulevard du Temple, packed to the open size">
         <figcaption>
           <strong>Boulevard du Temple</strong>
           Louis Daguerre, 1838. An early daguerreotype of a city. The original plate has spent long stretches with an uncertain home.
@@ -67,7 +69,25 @@
     </li>
     <li>
       <figure>
-        <img src="examples/lange-migrant-mother-open.jpg" alt="Migrant Mother, packed to the open-tier size">
+        <img src="examples/atkins-dictyota-open.jpg" alt="Dictyota dichotoma, packed to the open size">
+        <figcaption>
+          <strong>Dictyota dichotoma</strong>
+          Anna Atkins, from Photographs of British Algae, 1843. The first book made of photographs. The original cyanotypes are few.
+        </figcaption>
+      </figure>
+    </li>
+    <li>
+      <figure>
+        <img src="examples/hine-addie-card-open.jpg" alt="Addie Card, packed to the open size">
+        <figcaption>
+          <strong>Addie Card, 12 years old</strong>
+          Lewis Hine, 1910. A numbered National Child Labor Committee plate. Reproductions often drop the caption.
+        </figcaption>
+      </figure>
+    </li>
+    <li>
+      <figure>
+        <img src="examples/lange-migrant-mother-open.jpg" alt="Migrant Mother, packed to the open size">
         <figcaption>
           <strong>Migrant Mother</strong>
           Dorothea Lange for the U.S. Farm Security Administration, 1936. A government negative whose copies rarely name the FSA plate.
@@ -76,28 +96,20 @@
     </li>
     <li>
       <figure>
-        <img src="examples/nasa-earthrise-open.jpg" alt="Earthrise, packed to the open-tier size">
+        <img src="examples/nasa-earthrise-open.jpg" alt="Earthrise, packed to the open size">
         <figcaption>
           <strong>Earthrise</strong>
           William Anders / NASA, Apollo 8, 1968. A Hasselblad frame. The original magazine is in NASA’s archive.
         </figcaption>
       </figure>
     </li>
-    <li>
-      <figure>
-        <img src="examples/hine-addie-card-open.jpg" alt="Addie Card, packed to the open-tier size">
-        <figcaption>
-          <strong>Addie Card, 12 years old</strong>
-          Lewis Hine, 1910. A numbered National Child Labor Committee plate. Reproductions often drop the caption.
-        </figcaption>
-      </figure>
-    </li>
   </ul>
-  <p class="help">Each image above is a JPEG packed into four pieces. Sources and licenses are in <a href="examples/SOURCES.md">examples/SOURCES.md</a>.</p>
+  <p class="help">Each picture above is a JPEG packed to that open size. Sources and licenses are in <a href="examples/SOURCES.md">examples/SOURCES.md</a>.</p>
 
-  <h2>How a plate works</h2>
-  <p>The file is split into chunk contracts. The plate stores the keccak256 of those bytes, a small thumbnail, and the title. Transfers and marketplace approvals are off. Parking moves the token to a vault that can only return it to the wallet it came from — the same added security a mounted work used on Stillwater.</p>
-  <p>A photograph larger than four pieces needs an invitation. Send a Foundry keystore’s 0x address in a direct message on X to <a href="https://x.com/A_is_A">@A_is_A</a>.</p>
+  <h2>How a photograph is kept</h2>
+  <p>The file is written into that public record in pieces small enough to store safely. OnPlate then keeps a plate for the work: the fingerprint of the file, a small thumbnail, the name of the photograph, and who holds it. The photograph is not something you can toss to any marketplace. If you need it off your wall, you park it at an address you choose, and that address can only send it home. I used the same idea on Stillwater.</p>
+  <p>If you would like to store a larger photograph, send me the public address of the account that will store it, in a direct message on X to <a href="https://x.com/A_is_A">@A_is_A</a>. I whitelist by hand. That is boutique curation: it raises the upload size for that account.</p>
+  <p>This page is only a way in. The photograph lives in the record.</p>
 </main>
 <footer class="foot">
   <div class="col">

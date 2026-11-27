@@ -150,7 +150,7 @@ contract Upload is Script {
         require(job.pieces > 0 && job.pieces <= IUploadFactory(job.factory).maxChunks(), "pieces");
         if (!IUploadFactory(job.factory).canAdd(job.sender) && job.pieces > IUploadFactory(job.factory).openMax()) {
             console2.log("pieces", job.pieces);
-            console2.log("A photograph larger than 4 pieces needs an invitation. Nothing was sent.");
+            console2.log("A photograph larger than 4 pieces needs whitelist / boutique curation. Send this account’s public address in a direct message on X to @A_is_A. Nothing was sent.");
             revert("open");
         }
         if (job.home != job.sender) {

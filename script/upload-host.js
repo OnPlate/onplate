@@ -992,7 +992,7 @@ async function loadJob(opts) {
   if (!pieces || pieces > maxChunks) die("pieces");
   if (!canAdd && pieces > openMax) {
     console.log("pieces", pieces);
-    console.log("A photograph larger than 4 pieces needs an invitation. Nothing was sent.");
+    console.log("A photograph larger than 4 pieces needs whitelist / boutique curation. Send this account’s public address in a direct message on X to @A_is_A. Nothing was sent.");
     die("open");
   }
   if (!OnPlate.sameAddr(home, sender)) {
