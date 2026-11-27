@@ -150,7 +150,7 @@ contract Upload is Script {
         require(job.pieces > 0 && job.pieces <= IUploadFactory(job.factory).maxChunks(), "pieces");
         if (!IUploadFactory(job.factory).canAdd(job.sender) && job.pieces > IUploadFactory(job.factory).openMax()) {
             console2.log("pieces", job.pieces);
-            console2.log("A photograph larger than the open tier needs a nomination. Nothing was sent.");
+            console2.log("A photograph larger than 4 pieces needs an invitation. Nothing was sent.");
             revert("open");
         }
         if (job.home != job.sender) {
@@ -314,7 +314,7 @@ contract Upload is Script {
             }
         }
         // One transaction when no book has been opened yet and the count fits in
-        // one addChunks batch. A stranger still stops at openMax. A nominated
+        // one addChunks batch. A stranger still stops at openMax. A whitelisted
         // signer may go up to appendMax. A book that is already open, or a
         // larger photograph, keeps the four calls.
         if (job.book == address(0) && job.pieces > 0 && codeHas(job.factory, LINK_PHOTO)

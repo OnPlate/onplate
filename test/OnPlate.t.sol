@@ -98,18 +98,7 @@ contract WrongPage {
     }
 }
 
-contract ForwardNominate {
-    function go(OnPlate plate, address nominee) external {
-        plate.nominate(nominee);
-    }
-}
 
-contract DoubleNominate {
-    function go(OnPlate plate, address nominee) external {
-        plate.nominate(nominee);
-        plate.nominate(nominee);
-    }
-}
 
 /// Red-team cases for the factory, the photograph, and the page.
 contract OnPlateTest is Test {
@@ -246,7 +235,6 @@ contract OnPlateTest is Test {
         assertEq(factory.photoCount(), 1);
         assertEq(factory.photoAt(1), address(plate));
         assertTrue(factory.isPhoto(address(plate)));
-        assertTrue(plate.nominationAllowed());
         assertEq(plate.artistName(), "");
         assertEq(plate.ownerOf(1), owner);
         assertEq(plate.title(), owner);
@@ -277,7 +265,6 @@ contract OnPlateTest is Test {
         vm.expectRevert(OnPlateFactory.NotAllowed.selector);
         factory.openBook(5);
         assertEq(factory.photoCount(), 1);
-        assertTrue(plate.nominationAllowed());
         _samePlate(plate, chunk, hash, owner, artistPayee, 1000, artist);
 
         vm.prank(owner);
@@ -357,7 +344,7 @@ contract OnPlateTest is Test {
             artist: artist
         });
         vm.expectRevert(OnPlate.Hook.selector);
-        new OnPlate(address(factory), terms, "Chaise", "A photograph.", "", false, address(0), _thumb(), 1);
+        new OnPlate(address(factory), terms, "Chaise", "A photograph.", "", address(0), _thumb(), 1);
     }
 
     function test_badTerms() public {
@@ -985,6 +972,24 @@ contract OnPlateTest is Test {
         second.release();
     }
 
+    function test_nominationSelectorsAbsent() public {
+        OnPlate plate = _add(owner, 0, 0, owner);
+        (bool ok,) = address(plate).call(abi.encodeWithSignature("nominate(address)", buyer));
+        assertFalse(ok);
+        (ok,) = address(plate).call(abi.encodeWithSignature("nominationAllowed()"));
+        assertFalse(ok);
+        (ok,) = address(plate).call(abi.encodeWithSignature("nominated()"));
+        assertFalse(ok);
+        (ok,) = address(plate).call(abi.encodeWithSignature("nominationRevoked()"));
+        assertFalse(ok);
+        (ok,) = address(plate).call(abi.encodeWithSignature("vaultedSince()"));
+        assertFalse(ok);
+        (ok,) = address(plate).call(abi.encodeWithSignature("originalPrice()"));
+        assertFalse(ok);
+        (ok,) = address(factory).call(abi.encodeWithSignature("authorizeNominee(address)", buyer));
+        assertFalse(ok);
+    }
+
     function test_pageReplacesWithoutTouchingPlates() public {
         OnPlate plate = _add(owner, 450, 0, address(0));
         address chunk = plate.chunkAt(0);
@@ -1276,182 +1281,14 @@ contract OnPlateTest is Test {
         plate.buy{value: price}();
     }
 
-    function test_nominateOnceThenDenied() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        assertEq(plate.vaultedSince(), 0);
-        assertFalse(plate.nominationOpen());
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        uint256 since = plate.vaultedSince();
-        assertEq(since, block.timestamp);
-        assertTrue(plate.nominationOpen());
-
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-
-        vm.warp(block.timestamp + 30 days);
-        assertEq(plate.vaultedSince(), since);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.expectEmit(true, false, false, true, address(factory));
-        emit OnPlateFactory.Authorized(nominee, true);
-        vm.expectEmit(true, true, false, true, address(plate));
-        emit OnPlate.Nominated(nominee, owner);
-        vm.prank(owner);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertFalse(plate.nominationRevoked());
-        assertFalse(plate.nominationOpen());
-        assertTrue(factory.authorized(nominee));
-        assertTrue(factory.canAdd(nominee));
-        assertEq(plate.ownerOf(1), vault);
-        assertEq(plate.title(), owner);
-        assertEq(plate.listedPrice(), 0);
-        assertEq(plate.accounted(), 0);
-        assertEq(address(plate).balance, 0);
-
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(makeAddr("later"));
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-
-        vm.prank(vault);
-        plate.release();
-        assertEq(plate.ownerOf(1), owner);
-        OnPlate second = _add(nominee, 0, 0, address(0));
-        assertEq(second.title(), nominee);
-        assertEq(factory.photoCount(), 2);
-    }
-
-    function test_unvaultRestoresPotential() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(vault);
-        plate.release();
-        assertFalse(plate.nominated());
-        assertFalse(plate.nominationRevoked());
-        assertFalse(plate.nominationOpen());
-        assertEq(plate.vaultedSince(), 0);
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        assertTrue(plate.nominationOpen());
-        assertEq(plate.vaultedSince(), block.timestamp);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.warp(block.timestamp + 29 days);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        vm.warp(block.timestamp + 1 days);
-        vm.prank(owner);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
-    }
-
-    function test_vaultOf29DaysCannotNominate() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 29 days);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-
-        OnPlate other = _add(owner, 0, 0, address(0));
-        vm.prank(owner);
-        other.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days - 1);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        other.nominate(nominee);
-        vm.warp(block.timestamp + 1);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        other.nominate(nominee);
-        vm.prank(owner);
-        other.nominate(nominee);
-        assertTrue(other.nominated());
-        assertTrue(factory.authorized(nominee));
-    }
-
-    function test_nominateRequiresVault() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(buyer);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(buyer);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(owner);
-        vm.expectRevert(OnPlateFactory.NotAllowed.selector);
-        plate.nominate(address(0));
-        vm.prank(owner);
-        vm.expectRevert(OnPlateFactory.NotAllowed.selector);
-        plate.nominate(address(factory));
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(address(0)));
-        assertFalse(factory.authorized(address(factory)));
-        vm.prank(owner);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
-        assertEq(plate.ownerOf(1), vault);
-    }
-
-    function test_saleBelowRevokesNomination() public {
-        address nominee = makeAddr("nominee");
+    function test_resaleSplitsRoyalties() public {
         address again = makeAddr("again");
         vm.deal(again, 10 ether);
         OnPlate plate = _add(owner, 450, 1000, artistPayee);
         vm.prank(owner);
         plate.setMailbox(vault);
-        assertEq(plate.originalPrice(), 0);
-        assertTrue(plate.nominationOpen());
         vm.prank(vault);
         plate.release();
-        assertEq(plate.vaultedSince(), 0);
         vm.prank(owner);
         plate.clearMailbox();
         vm.startPrank(owner);
@@ -1461,24 +1298,15 @@ contract OnPlateTest is Test {
         vm.prank(owner);
         vm.expectRevert(OnPlate.TransfersOff.selector);
         plate.transferFrom(owner, buyer, 1);
-        assertFalse(plate.nominationOpen());
-        assertEq(plate.originalPrice(), 0);
-        assertFalse(plate.nominationRevoked());
-        assertFalse(plate.nominated());
 
         _sell(plate, owner, buyer, 2 ether);
-        assertEq(plate.originalPrice(), 2 ether);
-        assertFalse(plate.nominationRevoked());
-        assertEq(plate.vaultedSince(), 0);
+        // Owner is both the seller and the developer recipient: 1.71 + 0.09.
         assertEq(plate.claimable(owner), 1.8 ether);
         assertEq(plate.claimable(artistPayee), 0.2 ether);
         assertEq(plate.accounted(), 2 ether);
 
         _sell(plate, buyer, again, 2 ether);
-        assertFalse(plate.nominationRevoked());
         _sell(plate, again, buyer, 3 ether);
-        assertFalse(plate.nominationRevoked());
-        assertEq(plate.originalPrice(), 2 ether);
 
         uint256 devBefore = plate.claimable(owner);
         uint256 artistBefore = plate.claimable(artistPayee);
@@ -1487,28 +1315,14 @@ contract OnPlateTest is Test {
         plate.list(1 ether);
         vm.expectEmit(true, true, true, true, address(plate));
         emit IERC721.Transfer(buyer, again, 1);
-        vm.expectEmit(false, false, false, true, address(plate));
-        emit OnPlate.NominationRevoked(1 ether);
         vm.prank(again);
         plate.buy{value: 1 ether}();
-        assertTrue(plate.nominationRevoked());
-        assertEq(plate.originalPrice(), 2 ether);
         assertEq(plate.claimable(owner) - devBefore, 0.045 ether);
         assertEq(plate.claimable(artistPayee) - artistBefore, 0.1 ether);
         assertEq(plate.claimable(buyer) - sellerBefore, 0.855 ether);
 
         vm.prank(again);
         plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        assertGt(plate.vaultedSince(), 0);
-        vm.prank(again);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
         vm.prank(vault);
         plate.release();
         uint256 due = plate.claimable(buyer);
@@ -1518,39 +1332,22 @@ contract OnPlateTest is Test {
         assertEq(buyer.balance - bal, due);
         assertEq(plate.claimable(buyer), 0);
         _sell(plate, again, buyer, 1 ether);
-        assertTrue(plate.nominationRevoked());
         assertEq(plate.ownerOf(1), buyer);
     }
 
-    function test_saleAboveKeepsPotential() public {
-        address nominee = makeAddr("nominee");
+    function test_saleAccountingAcrossResales() public {
         OnPlate plate = _add(owner, 0, 0, address(0));
         _sell(plate, owner, buyer, 1 ether);
-        assertEq(plate.originalPrice(), 1 ether);
-        assertFalse(plate.nominationRevoked());
-        assertEq(plate.vaultedSince(), 0);
         vm.prank(owner);
         plate.withdraw();
         assertEq(plate.accounted(), 0);
         assertEq(address(plate).balance, 0);
 
-        vm.warp(block.timestamp + 30 days);
         _sell(plate, buyer, owner, 1 ether);
-        assertFalse(plate.nominationRevoked());
         _sell(plate, owner, buyer, 2 ether);
-        assertFalse(plate.nominationRevoked());
-        assertEq(plate.originalPrice(), 1 ether);
-        assertEq(plate.vaultedSince(), 0);
         vm.prank(buyer);
         plate.setMailbox(vault);
-        vm.prank(buyer);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(buyer);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
+        assertTrue(plate.parked());
         assertEq(plate.ownerOf(1), vault);
         // Artist share is 0. The factory dev share is still 450 bps.
         // The equal 1 ether sale left 0.045 with the dev recipient.
@@ -1559,48 +1356,13 @@ contract OnPlateTest is Test {
         assertEq(plate.claimable(buyer), 0.955 ether);
         assertEq(plate.accounted(), 3 ether);
         assertEq(address(plate).balance, 3 ether);
+        vm.prank(vault);
+        plate.release();
+        assertEq(plate.ownerOf(1), buyer);
+        assertFalse(plate.parked());
     }
 
-    function test_ownerAuthorizeIgnoresNomination() public {
-        address nominee = makeAddr("nominee");
-        address other = makeAddr("other");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        vm.prank(owner);
-        factory.setAuthorized(other, true);
-        assertFalse(plate.nominated());
-        assertTrue(plate.nominationOpen());
-        assertTrue(factory.canAdd(other));
-        assertFalse(factory.authorized(owner));
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        plate.nominate(nominee);
-        assertTrue(factory.authorized(nominee));
-        assertTrue(factory.authorized(other));
-        vm.prank(owner);
-        factory.setAuthorized(nominee, false);
-        assertFalse(factory.authorized(nominee));
-        assertTrue(plate.nominated());
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(owner);
-        factory.setAuthorized(nominee, true);
-        assertTrue(factory.canAdd(nominee));
-        vm.prank(owner);
-        vm.expectRevert(OnPlateFactory.NotAllowed.selector);
-        factory.authorizeNominee(other);
-        vm.prank(buyer);
-        vm.expectRevert(OnPlateFactory.NotAllowed.selector);
-        factory.authorizeNominee(buyer);
-    }
-
-    function test_factoryNomineeRollsBack() public {
+    function test_factoryAsTitleCanPark() public {
         OnPlate plate = _add(owner, 0, 0, address(0));
         vm.deal(address(factory), 1 ether);
         vm.prank(owner);
@@ -1611,142 +1373,16 @@ contract OnPlateTest is Test {
         plate.withdraw();
         assertEq(address(plate).balance, 0);
         assertEq(plate.accounted(), 0);
-        assertEq(plate.vaultedSince(), 0);
         vm.prank(address(factory));
         plate.setMailbox(vault);
-        vm.prank(address(factory));
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(address(factory));
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(address(factory));
-        vm.expectRevert(OnPlateFactory.NotAllowed.selector);
-        plate.nominate(address(factory));
-        assertFalse(plate.nominated());
-        assertFalse(plate.nominationRevoked());
-        assertTrue(plate.nominationOpen());
-        assertFalse(factory.authorized(address(factory)));
+        assertTrue(plate.parked());
+        assertEq(plate.ownerOf(1), vault);
+        assertEq(plate.title(), address(factory));
         vm.prank(vault);
         plate.release();
         assertEq(plate.ownerOf(1), address(factory));
         assertEq(plate.title(), address(factory));
-    }
-
-    function test_forwarderCannotNominate() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        ForwardNominate fwd = new ForwardNominate();
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        fwd.go(plate, nominee);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        fwd.go(plate, nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-        assertEq(plate.ownerOf(1), vault);
-        assertEq(plate.vaultedSince(), block.timestamp - 30 days);
-        vm.prank(owner);
-        plate.nominate(nominee);
-        assertTrue(factory.authorized(nominee));
-    }
-
-    function test_doubleNominateRollsBack() public {
-        address nominee = makeAddr("nominee");
-        DoubleNominate twice = new DoubleNominate();
-        vm.prank(owner);
-        factory.setAuthorized(address(twice), true);
-        OnPlate plate = _add(address(twice), 0, 0, address(0));
-        assertTrue(plate.nominationAllowed());
-        vm.prank(address(twice));
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        twice.go(plate, nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-        assertEq(plate.ownerOf(1), vault);
-        vm.prank(address(twice));
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
-        vm.prank(address(twice));
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(vault);
-        plate.release();
-        assertEq(plate.ownerOf(1), address(twice));
-    }
-
-    function test_twoPlatesHaveSeparatePotential() public {
-        address first = makeAddr("first");
-        address second = makeAddr("second");
-        OnPlate a = _add(owner, 0, 0, address(0));
-        OnPlate b = _add(owner, 0, 0, address(0));
-        vm.prank(owner);
-        a.setMailbox(vault);
-        vm.prank(owner);
-        b.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(owner);
-        a.nominate(first);
-        vm.prank(owner);
-        b.nominate(first);
-        assertTrue(a.nominated());
-        assertTrue(b.nominated());
-        assertTrue(factory.authorized(first));
-        vm.prank(owner);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        a.nominate(second);
-        assertFalse(factory.authorized(second));
-        vm.prank(vault);
-        a.release();
-        vm.prank(vault);
-        b.release();
-        assertEq(a.ownerOf(1), owner);
-        assertEq(b.ownerOf(1), owner);
-    }
-
-    function test_whitelistDoesNotGrantNomination() public {
-        address nominee = makeAddr("nominee");
-        OnPlate plate = _add(owner, 0, 0, address(0));
-        vm.prank(owner);
-        factory.setAuthorized(artist, true);
-        vm.prank(owner);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-        assertTrue(factory.authorized(artist));
-        vm.prank(vault);
-        plate.release();
-        vm.prank(owner);
-        plate.list(1 ether);
-        vm.prank(artist);
-        plate.buy{value: 1 ether}();
-        vm.prank(artist);
-        plate.setMailbox(vault);
-        vm.prank(artist);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
-        assertEq(plate.ownerOf(1), vault);
-        vm.prank(vault);
-        plate.release();
-        assertEq(plate.ownerOf(1), artist);
+        assertFalse(plate.parked());
     }
 
     function test_bookCapAndBatchLimit() public {
@@ -1868,7 +1504,6 @@ contract OnPlateTest is Test {
         factory.sealBook(narrow);
         address plate = factory.addPhoto("Chaise", "A photograph.", "", keccak256("a"), narrow, _thumb(), 450, 0, artist);
         vm.stopPrank();
-        assertFalse(OnPlate(plate).nominationAllowed());
         assertEq(factory.photoCount(), 1);
 
         vm.prank(owner);
@@ -1878,7 +1513,6 @@ contract OnPlateTest is Test {
         factory.sealBook(wide);
         address widePlate = factory.addPhoto("Window", "A photograph.", "Ada", keccak256("b"), wide, _thumb(), 450, 0, artist);
         vm.stopPrank();
-        assertTrue(OnPlate(widePlate).nominationAllowed());
         assertEq(OnPlate(widePlate).artistName(), "Ada");
         assertEq(factory.photoCount(), 2);
     }
@@ -1939,7 +1573,7 @@ contract OnPlateTest is Test {
         assertEq(plates.kind(), 1);
         assertEq(books.kind(), 2);
         vm.expectRevert(PlateDeployer.Hook.selector);
-        plates.deploy(terms, "Chaise", "A photograph.", "", false, address(0), _thumb(), 1);
+        plates.deploy(terms, "Chaise", "A photograph.", "", address(0), _thumb(), 1);
         vm.expectRevert(BookDeployer.Hook.selector);
         books.deploy(owner, 1);
         assertEq(factory.photoCount(), 0);
@@ -2001,58 +1635,32 @@ contract OnPlateTest is Test {
     }
 
 
-    /// Four pieces is the open door. That plate cannot nominate, even after a later whitelist.
-    function test_openTierStoresFourAndCannotNominate() public {
+    /// Four pieces is the open door. A later whitelist does not rewrite that plate.
+    function test_openTierStoresFour() public {
         assertFalse(factory.canAdd(buyer));
         OnPlate plate = _register(buyer, 4, "Small", "Ada", keccak256("open-four"));
         assertEq(plate.artistName(), "Ada");
-        assertFalse(plate.nominationAllowed());
         assertEq(plate.chunkCount(), 4);
+        assertEq(plate.title(), buyer);
 
-        address nominee = makeAddr("open-nominee");
         vm.prank(buyer);
         plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
+        assertTrue(plate.parked());
+        vm.prank(vault);
+        plate.release();
+        assertFalse(plate.parked());
+
         vm.prank(buyer);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(plate.nominated());
-        assertFalse(factory.authorized(nominee));
-        vm.prank(nominee);
         vm.expectRevert(OnPlateFactory.NotAllowed.selector);
         factory.openBook(5);
 
         vm.prank(owner);
         factory.setAuthorized(buyer, true);
         assertTrue(factory.canAdd(buyer));
-        assertFalse(plate.nominationAllowed());
         vm.prank(buyer);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        assertFalse(factory.authorized(nominee));
-    }
-
-    /// A plate registered while the artist could add a full photograph keeps that chance.
-    function test_whitelistedPlateStillNominatesAfterRevoke() public {
-        vm.prank(owner);
-        factory.setAuthorized(artist, true);
-        OnPlate plate = _add(artist, 450, 0, address(0));
-        assertTrue(plate.nominationAllowed());
-        vm.prank(owner);
-        factory.setAuthorized(artist, false);
-        assertFalse(factory.canAdd(artist));
-        address nominee = makeAddr("kept-nominee");
-        vm.prank(artist);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        assertTrue(factory.authorized(nominee));
-        vm.prank(nominee);
         assertEq(ChunkBook(factory.openBook(5)).expected(), 5);
-        vm.prank(nominee);
-        assertEq(ChunkBook(factory.openBook(1150)).expected(), 1150);
+        assertEq(plate.chunkCount(), 4);
+        assertEq(plate.title(), buyer);
     }
 
     /// Sealing a wide book does not let a revoked artist register it. The book stays unused.
@@ -2076,13 +1684,12 @@ contract OnPlateTest is Test {
         factory.setAuthorized(artist, true);
         vm.prank(artist);
         address plate = factory.addPhoto("Wide", "A photograph.", "Ada", keccak256("wide"), book, _thumb(), 450, 0, address(0));
-        assertTrue(OnPlate(plate).nominationAllowed());
         assertEq(OnPlate(plate).artistName(), "Ada");
         assertTrue(ChunkBook(book).used());
     }
 
     /// A four-piece book opened while allowed can be finished after the flag is removed.
-    /// The nomination flag is taken at registration, so this plate cannot nominate.
+    /// Registration still succeeds for four pieces after the flag is removed.
     function test_fourBookOpenedWhileAllowedFinishesAfterRevoke() public {
         vm.prank(owner);
         factory.setAuthorized(artist, true);
@@ -2098,7 +1705,6 @@ contract OnPlateTest is Test {
             "Narrow", "A photograph.", "", keccak256("narrow"), book, _thumb(), 450, 0, address(0)
         );
         vm.stopPrank();
-        assertFalse(OnPlate(plate).nominationAllowed());
         assertEq(OnPlate(plate).artistName(), "");
         assertEq(factory.photoCount(), 1);
     }
@@ -2107,8 +1713,6 @@ contract OnPlateTest is Test {
     function test_twoStrangersEachStoreFour() public {
         OnPlate a = _register(buyer, 4, "One", "", keccak256("sybil-a"));
         OnPlate b = _register(vault, 4, "Two", "", keccak256("sybil-b"));
-        assertFalse(a.nominationAllowed());
-        assertFalse(b.nominationAllowed());
         assertFalse(factory.canAdd(buyer));
         assertFalse(factory.canAdd(vault));
         assertEq(factory.photoCount(), 2);
@@ -2126,7 +1730,7 @@ contract OnPlateTest is Test {
         assertEq(ChunkBook(book).expected(), 4);
     }
 
-    /// Four pieces, the open tier, register in one call. The plate cannot nominate.
+    /// Four pieces, the open tier, register in one call.
     /// The gas stays under the 16,777,216 mainnet transaction cap.
     function test_linkPhotoRegistersFourInOneCall() public {
         address[] memory chunks = _pieces(buyer, 4, 41);
@@ -2139,7 +1743,6 @@ contract OnPlateTest is Test {
         OnPlate plate = OnPlate(made);
         assertLt(used, 16_777_216);
         assertEq(factory.photoCount(), 1);
-        assertFalse(plate.nominationAllowed());
         assertEq(plate.artistName(), "Boo");
         assertEq(plate.title(), buyer);
         assertEq(plate.contentHash(), keccak256("link-four"));
@@ -2165,9 +1768,9 @@ contract OnPlateTest is Test {
         assertFalse(factory.canAdd(buyer));
     }
 
-    /// A nominated signer registers twelve pieces in one call. The plate can nominate.
+    /// A whitelisted signer registers twelve pieces in one call.
     /// The gas stays under the 16,777,216 mainnet transaction cap.
-    function test_linkPhotoRegistersTwelveForNominated() public {
+    function test_linkPhotoRegistersTwelveForWhitelisted() public {
         address[] memory chunks = _pieces(artist, 12, 77);
         uint16 share = factory.devBps();
         bytes memory text = abi.encode("Chaise", "A photograph.", "Boo", _thumb());
@@ -2180,7 +1783,6 @@ contract OnPlateTest is Test {
         OnPlate plate = OnPlate(made);
         assertLt(used, 16_777_216);
         assertEq(factory.photoCount(), 1);
-        assertTrue(plate.nominationAllowed());
         assertEq(plate.artistName(), "Boo");
         assertEq(plate.title(), artist);
         assertEq(plate.contentHash(), keccak256("link-twelve"));
@@ -2194,8 +1796,8 @@ contract OnPlateTest is Test {
         assertEq(book.chunkAt(11), chunks[11]);
     }
 
-    /// Eighty pieces still fit in one nominated linkPhoto, which is one addChunks batch.
-    function test_linkPhotoRegistersEightyForNominated() public {
+    /// Eighty pieces still fit in one whitelisted linkPhoto, which is one addChunks batch.
+    function test_linkPhotoRegistersEightyForWhitelisted() public {
         address[] memory chunks = _pieces(artist, 80, 88);
         uint16 share = factory.devBps();
         bytes memory text = abi.encode("Wide", "A photograph.", "", _thumb());
@@ -2207,7 +1809,6 @@ contract OnPlateTest is Test {
         uint256 used = before - gasleft();
         assertLt(used, 16_777_216);
         assertEq(factory.photoCount(), 1);
-        assertTrue(OnPlate(made).nominationAllowed());
         assertEq(ChunkBook(OnPlate(made).book()).chunkCount(), 80);
     }
 
@@ -2227,11 +1828,10 @@ contract OnPlateTest is Test {
         address[] memory chunks = _pieces(buyer, 2, 90);
         OnPlate plate = _link(buyer, chunks, keccak256("burn-a"));
         bytes32 key = factory.workKey(plate.book());
-        (address origin, bool ended, bool chance) = factory.lineage(key);
+        (address origin, bool ended) = factory.lineage(key);
         assertEq(factory.liveWork(key), address(plate));
         assertEq(origin, buyer);
         assertFalse(ended);
-        assertFalse(chance);
         vm.prank(artist);
         vm.expectRevert(OnPlate.NotHolder.selector);
         plate.burn();
@@ -2249,10 +1849,9 @@ contract OnPlateTest is Test {
         assertEq(factory.photoAt(1), address(0));
         assertEq(factory.liveWork(key), address(0));
         assertFalse(factory.isPhoto(address(plate)));
-        (origin, ended, chance) = factory.lineage(key);
+        (origin, ended) = factory.lineage(key);
         assertEq(origin, buyer);
         assertTrue(ended);
-        assertFalse(chance);
         vm.expectRevert();
         plate.ownerOf(1);
         vm.prank(buyer);
@@ -2283,7 +1882,7 @@ contract OnPlateTest is Test {
         assertGt(owed, 0);
         vm.prank(artist);
         plate.burn();
-        (address origin, bool ended,) = factory.lineage(factory.workKey(plate.book()));
+        (address origin, bool ended) = factory.lineage(factory.workKey(plate.book()));
         assertEq(origin, buyer);
         assertFalse(ended);
         assertEq(factory.liveWork(factory.workKey(plate.book())), address(0));
@@ -2321,7 +1920,7 @@ contract OnPlateTest is Test {
         assertTrue(plate.burned());
         assertEq(plate.burnedBy(), buyer);
         assertEq(factory.photoAt(plate.plateId()), address(0));
-        (address origin, bool ended,) = factory.lineage(factory.workKey(plate.book()));
+        (address origin, bool ended) = factory.lineage(factory.workKey(plate.book()));
         assertEq(origin, buyer);
         assertTrue(ended);
     }
@@ -2341,7 +1940,7 @@ contract OnPlateTest is Test {
         plate.list(1 ether);
         vm.prank(buyer);
         plate.burn();
-        (, bool ended,) = factory.lineage(factory.workKey(plate.book()));
+        (, bool ended) = factory.lineage(factory.workKey(plate.book()));
         assertTrue(ended);
         vm.prank(vault);
         vm.expectRevert();
@@ -2391,7 +1990,7 @@ contract OnPlateTest is Test {
     }
 
     /// A later holder can burn once the plate is home. The list comes back only to the account that registered it.
-    /// Authorizing that account before the remint does not give an open-tier plate a nomination.
+    /// Authorizing that account before the remint does not change who may restore the list.
     function test_holderBurnReturnsTheListOnlyToOrigin() public {
         address[] memory chunks = _pieces(buyer, 1, 95);
         OnPlate plate = _link(buyer, chunks, keccak256("return-list"));
@@ -2410,12 +2009,10 @@ contract OnPlateTest is Test {
         factory.linkPhoto(keccak256("return-vault"), chunks, share, 0, address(0), text);
         OnPlate again = _link(buyer, chunks, keccak256("return-origin"));
         assertEq(again.title(), buyer);
-        assertFalse(again.nominationAllowed());
         assertTrue(factory.canAdd(buyer));
-        (address origin, bool ended, bool chance) = factory.lineage(factory.workKey(again.book()));
+        (address origin, bool ended) = factory.lineage(factory.workKey(again.book()));
         assertEq(origin, buyer);
         assertFalse(ended);
-        assertFalse(chance);
     }
 
     /// A second wallet used as the vault cannot burn. It cannot finish the list or return it.
@@ -2430,18 +2027,16 @@ contract OnPlateTest is Test {
         vm.prank(vault);
         vm.expectRevert(OnPlate.Hook.selector);
         plate.burn();
-        (address origin, bool ended, bool chance) = factory.lineage(factory.workKey(plate.book()));
+        (address origin, bool ended) = factory.lineage(factory.workKey(plate.book()));
         assertEq(origin, artist);
         assertFalse(ended);
-        assertTrue(chance);
         assertEq(factory.liveWork(factory.workKey(plate.book())), address(plate));
         vm.prank(vault);
         plate.release();
         vm.prank(artist);
         plate.burn();
-        (, ended, chance) = factory.lineage(factory.workKey(plate.book()));
+        (, ended) = factory.lineage(factory.workKey(plate.book()));
         assertTrue(ended);
-        assertFalse(chance);
         bytes memory text = abi.encode("Burn", "A photograph.", "", _thumb());
         uint16 share = factory.devBps();
         vm.expectRevert(OnPlateFactory.WorkEnded.selector);
@@ -2452,57 +2047,8 @@ contract OnPlateTest is Test {
         factory.linkPhoto(keccak256("vault-self-artist"), chunks, share, 0, address(0), text);
     }
 
-    /// A nomination that was used does not come back, even while the origin can still add.
-    function test_spentNominationDoesNotReturn() public {
-        address nominee = makeAddr("spent-nominee");
-        vm.prank(owner);
-        factory.setAuthorized(artist, true);
-        OnPlate plate = _register(artist, 1, "Spent", "", keccak256("spent-life"));
-        address[] memory chunks = _chunkList(plate);
-        vm.prank(artist);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        plate.nominate(nominee);
-        assertTrue(plate.nominated());
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Hook.selector);
-        plate.burn();
-        vm.prank(vault);
-        plate.release();
-        _sell(plate, artist, buyer, 1 ether);
-        vm.prank(buyer);
-        plate.burn();
-        OnPlate again = _link(artist, chunks, keccak256("spent-again"));
-        assertFalse(again.nominationAllowed());
-        assertTrue(factory.canAdd(artist));
-        vm.prank(artist);
-        again.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        again.nominate(nominee);
-        assertFalse(again.nominated());
-    }
-
-    /// A chance revoked by a cheaper sale stays revoked on the remint.
-    function test_revokedNominationDoesNotReturn() public {
-        vm.prank(owner);
-        factory.setAuthorized(artist, true);
-        OnPlate plate = _register(artist, 1, "Revoked", "", keccak256("revoked-life"));
-        address[] memory chunks = _chunkList(plate);
-        _sell(plate, artist, buyer, 1 ether);
-        _sell(plate, buyer, vault, 0.5 ether);
-        assertTrue(plate.nominationRevoked());
-        vm.prank(vault);
-        plate.burn();
-        OnPlate again = _link(artist, chunks, keccak256("revoked-again"));
-        assertFalse(again.nominationAllowed());
-        assertTrue(factory.canAdd(artist));
-    }
-
-    /// An unused chance survives a holder's burn. Removing the origin from the whitelist does not take it.
-    function test_unusedChanceSurvivesAHolderBurn() public {
+    /// An origin can remint an open-tier work after being removed from the whitelist.
+    function test_originRemintsOpenWorkAfterDeauth() public {
         vm.prank(owner);
         factory.setAuthorized(artist, true);
         OnPlate plate = _register(artist, 1, "Unused", "", keccak256("unused-life"));
@@ -2514,15 +2060,14 @@ contract OnPlateTest is Test {
         vm.prank(buyer);
         plate.burn();
         OnPlate again = _link(artist, chunks, keccak256("unused-again"));
-        assertTrue(again.nominationAllowed());
+        assertEq(again.title(), artist);
         assertFalse(factory.canAdd(artist));
         vm.prank(artist);
         again.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(artist);
-        again.nominate(buyer);
-        assertTrue(again.nominated());
-        assertTrue(factory.canAdd(buyer));
+        assertTrue(again.parked());
+        vm.prank(vault);
+        again.release();
+        assertEq(again.ownerOf(1), artist);
     }
 
     /// A large work can be restored after the origin is removed from the whitelist.
@@ -2557,7 +2102,6 @@ contract OnPlateTest is Test {
         vm.stopPrank();
         assertEq(factory.restores(artist, 5), 1);
         OnPlate again = _restore(artist, chunks, keccak256("wide-again"));
-        assertTrue(again.nominationAllowed());
         assertFalse(factory.canAdd(artist));
         assertEq(again.chunkCount(), 5);
         assertEq(again.chunkAt(0), chunks[0]);
@@ -2717,10 +2261,9 @@ contract OnPlateTest is Test {
         assertEq(plate.ownerOf(1), home);
         assertEq(ChunkBook(plate.book()).artist(), home);
         assertEq(factory.openedBy(plate.book()), address(0));
-        (address origin, bool ended, bool chance) = factory.lineage(factory.workKey(plate.book()));
+        (address origin, bool ended) = factory.lineage(factory.workKey(plate.book()));
         assertEq(origin, home);
         assertFalse(ended);
-        assertFalse(chance);
         assertFalse(factory.canAdd(home));
         _signerLog(address(plate), artist, home);
         vm.prank(artist);
@@ -2743,57 +2286,6 @@ contract OnPlateTest is Test {
         OnPlate quiet = OnPlate(factory.linkPhoto(keccak256("deliver-box"), boxed, share, 0, address(0), text, address(box)));
         assertEq(quiet.ownerOf(1), address(box));
         assertEq(quiet.title(), address(box));
-    }
-
-    /// The plate's one nomination follows the signer. The receiving wallet is the only account that can use it.
-    function test_deliveredPlateNominatesOnceFromTheWallet() public {
-        address home = makeAddr("home");
-        address nominee = makeAddr("nominee");
-        vm.prank(owner);
-        factory.setAuthorized(artist, true);
-        uint16 share = factory.devBps();
-        bytes memory text = abi.encode("Chaise", "A photograph.", "", _thumb());
-        address[] memory chunks = _pieces(artist, 1, 83);
-        vm.prank(artist);
-        OnPlate plate = OnPlate(factory.linkPhoto(keccak256("deliver-nom"), chunks, share, 0, address(0), text, home));
-        assertTrue(plate.nominationAllowed());
-        assertFalse(factory.canAdd(home));
-        vm.prank(home);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(vault);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(artist);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(nominee);
-        vm.prank(home);
-        plate.nominate(nominee);
-        assertTrue(factory.canAdd(nominee));
-        assertFalse(factory.canAdd(home));
-        assertTrue(plate.nominated());
-        vm.prank(home);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(makeAddr("second"));
-    }
-
-    /// An open-tier signer cannot hand the receiver a nomination.
-    function test_openTierDeliveryCannotNominate() public {
-        address home = makeAddr("home");
-        uint16 share = factory.devBps();
-        bytes memory text = abi.encode("Chaise", "A photograph.", "", _thumb());
-        address[] memory chunks = _pieces(buyer, 1, 84);
-        vm.prank(buyer);
-        OnPlate plate = OnPlate(factory.linkPhoto(keccak256("deliver-open"), chunks, share, 0, address(0), text, home));
-        assertFalse(plate.nominationAllowed());
-        assertEq(plate.title(), home);
-        vm.prank(home);
-        plate.setMailbox(vault);
-        vm.warp(block.timestamp + 30 days);
-        vm.prank(home);
-        vm.expectRevert(OnPlate.Nomination.selector);
-        plate.nominate(artist);
-        assertFalse(factory.canAdd(artist));
     }
 
     /// A stranger, even a whitelisted one, cannot write a book opened for someone else.
@@ -2846,7 +2338,7 @@ contract OnPlateTest is Test {
         );
         vm.stopPrank();
         bytes32 key = factory.workKey(plate.book());
-        (address origin,,) = factory.lineage(key);
+        (address origin,) = factory.lineage(key);
         assertEq(origin, home);
         vm.prank(home);
         plate.list(1 ether);
@@ -2877,7 +2369,7 @@ contract OnPlateTest is Test {
         OnPlate again = _restore(home, chunks, keccak256("deliver-restored"));
         assertEq(again.title(), home);
         assertEq(factory.restores(home, 5), 0);
-        (origin,,) = factory.lineage(key);
+        (origin,) = factory.lineage(key);
         assertEq(origin, home);
     }
 
@@ -2944,7 +2436,7 @@ contract OnPlateTest is Test {
         assertEq(plate.claimable(artistPayee), 0.1 ether);
         assertEq(plate.claimable(home), 0.855 ether);
         assertEq(plate.claimable(artist), 0);
-        (address origin,,) = factory.lineage(factory.workKey(plate.book()));
+        (address origin,) = factory.lineage(factory.workKey(plate.book()));
         assertEq(origin, home);
     }
 

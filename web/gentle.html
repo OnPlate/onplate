@@ -13,7 +13,7 @@
 <meta name="twitter:title" content="OnPlate">
 <meta name="twitter:description" content="OnPlate is a factory for 1/1 on-chain photographs. The full file sits in chunk contracts on the same chain.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="app.css?v=18">
+<link rel="stylesheet" href="app.css?v=19">
 <link rel="stylesheet" href="gentle.css">
 </head>
 <body data-feel="gentle">
@@ -21,7 +21,7 @@
 <header class="bar">
   <div class="brand">
     <button id="mark" class="mark" type="button" aria-expanded="false" aria-controls="artist-menu">OnPlate</button>
-    <a id="feel-formal" class="feel-back" href="index.html">Formal pages</a>
+    <a id="feel-formal" class="feel-back" href="add.html">Formal pages</a>
     <div id="artist-menu" class="artist-menu" hidden></div>
   </div>
   <div class="wallet-top">
@@ -129,10 +129,6 @@
         <div id="steps"></div>
         <details id="agent" class="more" hidden>
           <summary>Agent / script</summary>
-          <div class="copy-block">
-            <button id="copy-setup" type="button">Copy setup prompt (for artists without Foundry)</button>
-            <p class="help">Start here if your machine does not have Foundry yet. Paste the copied prompt into an agent that can use a terminal (e.g. Grok Build, Claude Code, etc.). The agent will install it and create a keystore named “onplate.” After that, send only the new 0x address in a direct message on X to @A_is_A so you can be invited. Do not send the password or the keystore file.</p>
-          </div>
           <div id="agent-actions"></div>
           <pre id="copied-text" class="command" hidden></pre>
           <p id="copied-hint" class="help" hidden></p>
@@ -146,7 +142,7 @@
             <ul id="path-list" class="help paths" hidden>
               <li id="path-manual" hidden>Recommended Manual Path: “Store every piece” sends the pieces of the photograph that are not stored yet, in groups. Each group is as many pieces as fit in one block, and the wallet confirms once for each group. Pieces this account already stored are skipped.</li>
               <li id="path-one" hidden>Backup Manual Path: “Store piece” sends the next piece that is not stored yet, and the wallet confirms once.</li>
-              <li id="path-agent" hidden>Agent / script: This route uploads groups of pieces without a wallet confirmation for each group. The keystore on your computer signs them instead. Copy agent prompt downloads the photograph named in IMAGE, including a packed JPEG, and the thumbnail. The prompt tells the agent to check the photograph before anything is sent. That check does not unlock the keystore. When the check matches, the send asks for the password once in the terminal. If the agent cannot take that password, it gives you one command to copy into a new terminal window. Type the password there once. That send stores every remaining group and registers the photograph. If some pieces are already stored, the agent starts at the first missing one and does not send those again.</li>
+              <li id="path-agent" hidden>Agent / script: This route uploads groups of pieces without a wallet confirmation for each group. The keystore on your computer signs them instead. Copy agent prompt copies one set of instructions and downloads a zip with that prompt, the photograph named in IMAGE, and the thumbnail. The same prompt installs Foundry and creates the onplate keystore when they are missing, then stores this photograph. The check does not unlock the keystore. When the check matches, the send asks for the password once in the terminal. If the agent cannot take that password, it gives you one command to copy into a new terminal window. Type the password there once. That send stores every remaining group and registers the photograph. If some pieces are already stored, the agent starts at the first missing one and does not send those again.</li>
             </ul>
             <div id="more-extra"></div>
           </div>
@@ -211,10 +207,11 @@
     <button id="warn-no" type="button">Cancel</button>
   </div>
 </dialog>
+<script src="zip.js"></script>
 <script src="keccak.js"></script>
 <script src="png.js"></script>
 <script src="bytecode.js"></script>
-<script src="chain.js?v=16"></script>
-<script src="app.js?v=22"></script>
+<script src="chain.js?v=18"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>

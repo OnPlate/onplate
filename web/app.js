@@ -1,4 +1,4 @@
-/* Hosted page. Reads the factory. Store every piece sends groups through the batch contract, and each group asks the wallet. Register asks once per linking transaction. Agent / script only copies text: a setup prompt, an upload prompt, and a forge command for script/Upload.s.sol. The page does not hold a key, install Foundry, or run forge. */
+/* Hosted page. Reads the factory. Store every piece sends groups through the batch contract, and each group asks the wallet. Register asks once per linking transaction. Agent / script copies one prompt and a local zip of that prompt, the JPEG, and the thumbnail. The page does not hold a key, install Foundry, or run forge. */
 (function () {
   if (window.top !== window.self) {
     document.documentElement.replaceChildren();
@@ -46,8 +46,6 @@
   var packScrollY = 0;
   var packTouchLock = false;
   var linkNote = "";
-  var chainNow = 0n;
-  var HOLD = 30n * 24n * 60n * 60n;
   var loaded = [];
   var loadedClaims = [];
   var uploadsKnown = false;
@@ -156,6 +154,9 @@
     url = reuseKey && keptUrls ? keptUrls[reuseKey] : "";
     if (!url) url = URL.createObjectURL(new Blob([bytes], { type: type }));
     img.src = url;
+    if (reuseKey && String(reuseKey).indexOf(":thumb") < 0) {
+      img.setAttribute("data-full", String(reuseKey).replace(/:tile$/i, "").toLowerCase());
+    }
     if (className === "thumb") {
       img.title = "Save a copy";
       img.addEventListener("click", function () {
@@ -197,14 +198,14 @@
     return account && !P.isOff();
   }
 
-  var OPEN_SENTENCE = "A photograph larger than 4 pieces needs a nomination.";
+  var OPEN_SENTENCE = "A photograph larger than 4 pieces needs an invitation. Send this keystore’s 0x address in a direct message on X to @A_is_A.";
 
   function mayAdd(factory) {
     if (!factory || !mine()) return Promise.resolve(false);
     return P.canAdd(chain, factory, account);
   }
 
-  // A nominated account may use the full door. Anyone else stops at four pieces.
+  // A whitelisted account may use the full door. Anyone else stops at four pieces.
   function pieceCapOk(allowed, count) {
     return !!allowed || Number(count) <= P.OPEN_MAX;
   }
@@ -1067,7 +1068,7 @@
   function pages() {
     if (hall) return { add: "bench.html", view: "hall.html" };
     if (gentle) return { add: "gentle.html", view: "gentle-view.html" };
-    return { add: "index.html", view: "view.html" };
+    return { add: "add.html", view: "view.html" };
   }
 
   // The gallery address, with or without one artist. Chain and factory stay in the query.
@@ -1090,7 +1091,7 @@
   }
 
   function classicHref() {
-    return (viewing ? "view.html" : "index.html") + (window.location.search || "");
+    return (viewing ? "view.html" : "add.html") + (window.location.search || "");
   }
 
   function artistsOf(list) {
@@ -1226,9 +1227,13 @@
     var favs, collected, selling, showAll;
     if (!menu) return;
     menu.replaceChildren();
+    var about = document.createElement("a");
     var add = document.createElement("a");
     var pair = pages();
     var addPage = pair.add;
+    about.href = "index.html" + (window.location.search || "");
+    about.textContent = "About";
+    menu.appendChild(about);
     // The add page opens the full gallery. Chain and factory stay. Artist and favorites do not.
     add.href = viewing ? addPage + (window.location.search || "") : viewHref("");
     add.textContent = viewing ? "Add a photograph" : "View the photographs";
@@ -1713,6 +1718,8 @@
     open.setAttribute("aria-label", "Open " + (rowData.meta.name || "photograph"));
     if (rowData.image) {
       urls[rowData.plate + ":tile"] = showBytes(open, rowData.image, P.sniff(rowData.image), rowData.meta.name || "Photograph", "", rowData.plate + ":tile");
+    } else if (rowData.meta && rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
+      urls[rowData.plate + ":tile"] = showBytes(open, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "", rowData.plate + ":tile");
     }
     open.addEventListener("click", function () {
       studioPlate = rowData.plate || "";
@@ -1907,6 +1914,30 @@
     list.appendChild(dd);
   }
 
+  function photoName(rowData) {
+    var name = rowData && rowData.meta && rowData.meta.name;
+    return name || "this photograph";
+  }
+
+  function narrowPhone() {
+    return window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+  }
+
+  function displayAddr(addr) {
+    if (!addr) return "";
+    if (narrowPhone()) return shortAddr(addr) || addr;
+    return addr;
+  }
+
+  function factAddr(list, label, addr) {
+    var shown = displayAddr(addr);
+    var dd = el("dd", shown);
+    dd.className = "addr";
+    if (addr && shown !== addr) dd.title = addr;
+    list.appendChild(el("dt", label));
+    list.appendChild(dd);
+  }
+
   function card(rowData, claim, nav, recordOpen) {
     var box = el("section");
     var price = el("input");
@@ -1914,7 +1945,8 @@
     var tools = el("div");
     var menu = el("div");
     var record = el("details");
-    var recordSummary = el("summary", "Details");
+    var named = photoName(rowData);
+    var recordSummary = el("summary", "Details of " + named);
     var details = el("div");
     var facts = el("dl");
     var warn;
@@ -1930,6 +1962,8 @@
     facts.className = "facts";
     if (rowData.image) {
       urls[rowData.plate] = showBytes(box, rowData.image, P.sniff(rowData.image), rowData.meta.name || "Photograph", "", rowData.plate);
+    } else if (rowData.meta.printed && rowData.hashOk !== false && rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
+      urls[rowData.plate] = showBytes(box, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "", rowData.plate);
     } else if (!rowData.meta.printed) {
       if (rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
         urls[rowData.plate] = showBytes(box, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "", rowData.plate);
@@ -1973,25 +2007,25 @@
       details.appendChild(el("p", "On-chain thumbnail"));
       urls[rowData.plate + ":thumb"] = showBytes(details, rowData.meta.thumbnail, "image/png", "On-chain thumbnail", "thumb", rowData.plate + ":thumb");
     }
-    fact(facts, "Plate address", rowData.plate || "");
+    factAddr(facts, "Plate address", rowData.plate || "");
     if (!rowData.bound) {
       warn = el("dd", "This address is not the plate for this chain.");
       warn.className = "wide";
       facts.appendChild(warn);
     }
-    fact(facts, "Title owner", rowData.meta.title || "");
-    fact(facts, "Current holder", rowData.meta.holder || "");
+    factAddr(facts, "Title owner", rowData.meta.title || "");
+    factAddr(facts, "Current holder", rowData.meta.holder || "");
     var origin = P.parseAddr(rowData.meta.origin) || minterOf(rowData);
     var uploader = P.parseAddr(rowData.uploader);
-    if (origin) fact(facts, "Artist wallet", origin);
+    if (origin) factAddr(facts, "Artist wallet", origin);
     if (uploader && origin && !P.sameAddr(uploader, origin)) {
-      fact(facts, "Registered by", uploader);
+      factAddr(facts, "Registered by", uploader);
       warn = el("dd", "This keystore stored the photograph for the artist wallet.");
       warn.className = "wide";
       facts.appendChild(warn);
     }
-    fact(facts, "Developer royalty", bpsText(rowData.meta.devBps) + " to " + (rowData.meta.devRecipient || ""));
-    fact(facts, "Artist royalty", bpsText(rowData.meta.artistBps) + " to " + (rowData.meta.artistRecipient || "none"));
+    fact(facts, "Developer royalty", bpsText(rowData.meta.devBps) + " to " + displayAddr(rowData.meta.devRecipient || ""));
+    fact(facts, "Artist royalty", bpsText(rowData.meta.artistBps) + " to " + (rowData.meta.artistRecipient ? displayAddr(rowData.meta.artistRecipient) : "none"));
     if (!rowData.meta.printed) fact(facts, "Storage", "Not fully stored yet");
     if (rowData.meta.price > 0n && !rowData.meta.parked) {
       fact(facts, "Listing", "Listed for " + P.weiToEth(rowData.meta.price) + " ETH");
@@ -2000,18 +2034,10 @@
     } else {
       fact(facts, "Listing", "Not for sale.");
     }
-    if (rowData.meta.parked) fact(facts, "Parked", "at " + (rowData.meta.mailbox || ""));
-    else if (rowData.meta.mailbox) fact(facts, "Vault", "named " + rowData.meta.mailbox + ". The photograph is not parked.");
-    if (rowData.meta.buyer) fact(facts, "Buyer", "Only " + rowData.meta.buyer + " may buy.");
+    if (rowData.meta.parked) fact(facts, "Parked", "Parked at " + displayAddr(rowData.meta.mailbox || ""));
+    else fact(facts, "Parked", "Not parked");
+    if (rowData.meta.buyer) fact(facts, "Buyer", "Only " + displayAddr(rowData.meta.buyer) + " may buy.");
     if (claim > 0n) fact(facts, "Withdrawable", P.weiToEth(claim) + " ETH");
-    if (rowData.meta.originalPrice > 0n) fact(facts, "Original price", P.weiToEth(rowData.meta.originalPrice) + " ETH");
-    if (!rowData.meta.nominationAllowed) fact(facts, "Nomination", "This plate cannot nominate.");
-    else if (rowData.meta.revoked) fact(facts, "Nomination", "This plate can no longer nominate.");
-    else if (rowData.meta.nominated) fact(facts, "Nomination", "This plate has used its nomination.");
-    else if (rowData.meta.parked && rowData.meta.vaultedSince > 0n && chainNow >= rowData.meta.vaultedSince + HOLD) {
-      fact(facts, "Nomination", "This plate can nominate once.");
-    } else if (rowData.meta.parked) fact(facts, "Nomination", "In the vault. The 30-day wait is still running.");
-    else fact(facts, "Nomination", "This plate can nominate a new artist after being vaulted for 30 days.");
     fact(facts, "Content hash", rowData.meta.hash || "", "hash");
     details.appendChild(facts);
     menu.appendChild(record);
@@ -2040,12 +2066,12 @@
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
       if (canBuy) {
-        var buy = button("Buy", function () { onBuy(rowData); });
+        var buy = button("Buy for " + P.weiToEth(rowData.meta.price) + " ETH", function () { onBuy(rowData); });
         buy.className = "solid";
         actionBody.appendChild(buy);
       }
       if (canManage) {
-        actionBody.appendChild(actSwitch("List", function (panel) {
+        actionBody.appendChild(actSwitch("List " + named, function (panel) {
           var priceLabel, listed, listRow = row();
           if (rowData.meta.price > 0n) {
             listed = el("span", P.weiToEth(rowData.meta.price) + " ETH");
@@ -2069,9 +2095,11 @@
         }));
         actionBody.appendChild(actSwitch("Buyer", function (panel) {
           var buyerLabel, allowed, buyerRow = row();
+          panel.appendChild(el("p", "Leave this blank for a public listing. If you name an address, only that wallet can buy."));
           if (rowData.meta.buyer) {
-            allowed = el("span", rowData.meta.buyer);
+            allowed = el("span", displayAddr(rowData.meta.buyer));
             allowed.className = "act-frozen act-addr";
+            if (rowData.meta.buyer) allowed.title = rowData.meta.buyer;
             buyerRow.classList.add("act-line");
             buyerRow.appendChild(allowed);
             buyerRow.appendChild(button("Anyone can buy", function () { onAnyone(rowData); }));
@@ -2090,10 +2118,10 @@
           }
           panel.appendChild(buyerRow);
         }));
-        if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park", function (panel) {
+        if (rowData.meta.printed) actionBody.appendChild(actSwitch("Park " + named, function (panel) {
           var vaultLabel = el("label", "Vault address");
           var parkRow = row();
-          panel.appendChild(el("p", parkExplain(rowData)));
+          panel.appendChild(el("p", parkExplain()));
           vault.setAttribute("aria-label", "Vault address");
           vault.spellCheck = false;
           vault.addEventListener("keydown", function (ev) {
@@ -2105,33 +2133,18 @@
           parkRow.appendChild(vaultLabel);
           parkRow.appendChild(enterHint());
           panel.appendChild(parkRow);
-          if (rowData.meta.mailbox && !rowData.meta.parked) {
-            panel.appendChild(el("p", "Named vault " + rowData.meta.mailbox + ". The photograph is not parked."));
-            panel.appendChild(button("Clear named vault", function () { onClear(rowData); }));
-          }
         }));
       }
       if (canWithdraw) actionBody.appendChild(button("Withdraw Payments", function () { onWithdraw(rowData); }));
+      if (canBuy || canWithdraw) actions.open = true;
       menu.appendChild(actions);
       tools.appendChild(actionBody);
       tiePanel(actions, actionBody, false);
-    }
-    if (rowData.meta.nominationAllowed && clockStillRunning(rowData.meta, chainNow)) {
-      box.appendChild(nominationWait(rowData.meta));
     }
     if (armed(rowData) && mine() && rowData.meta.parked && P.sameAddr(account, rowData.meta.mailbox)) {
       var ret = button("Return", function () { onRelease(rowData); });
       ret.className = "danger";
       box.appendChild(ret);
-    }
-    if (mayNominate(rowData)) {
-      var nominee = el("input");
-      var nomRow = row();
-      nominee.setAttribute("aria-label", "Nominee address");
-      nominee.spellCheck = false;
-      nomRow.appendChild(nominee);
-      nomRow.appendChild(button("Nominate", function () { onNominate(rowData, nominee.value); }));
-      box.appendChild(nomRow);
     }
     return box;
   }
@@ -2149,30 +2162,49 @@
     };
   }
 
-  function loadImage(factory, plate, meta, bound, verified) {
-    if (!meta.printed) {
-      return Promise.resolve(plateRow(factory, plate, meta, null, true, false, bound, verified));
-    }
-    return P.cacheGet(chain, plate).then(function (cached) {
-      if (cached && cached.hash && cached.hash.toLowerCase() === meta.hash.toLowerCase() && cached.bytes) {
-        return plateRow(factory, plate, meta, cached.bytes, true, true, bound, verified);
+  function applyImage(rowData, bytes, cached) {
+    var type = P.sniff(bytes);
+    var plate = rowData && rowData.plate;
+    var url, nodes, i, key;
+    if (!type || !plate) return;
+    rowData.image = bytes;
+    rowData.hashOk = true;
+    rowData.cached = !!cached;
+    url = URL.createObjectURL(new Blob([bytes], { type: type }));
+    urls[plate] = url;
+    urls[plate + ":tile"] = url;
+    if (!photos) return;
+    key = String(plate).toLowerCase();
+    nodes = photos.querySelectorAll('img[data-full="' + key + '"]');
+    for (i = 0; i < nodes.length; i++) nodes[i].src = url;
+  }
+
+  function hydrateImage(rowData, mineTicket) {
+    if (!rowData || !rowData.meta || !rowData.meta.printed || !rowData.plate) return;
+    P.cacheGet(chain, rowData.plate).then(function (cached) {
+      if (mineTicket !== ticket) return null;
+      if (cached && cached.hash && cached.hash.toLowerCase() === rowData.meta.hash.toLowerCase() && cached.bytes) {
+        return { bytes: cached.bytes, cached: true };
       }
-      return P.reassemble(chain, plate, meta.hash).then(function (bytes) {
-        return P.cachePut(chain, plate, {
-          name: meta.name || "",
-          description: meta.description || "",
-          hash: meta.hash,
+      return P.reassemble(chain, rowData.plate, rowData.meta.hash).then(function (bytes) {
+        P.cachePut(chain, rowData.plate, {
+          name: rowData.meta.name || "",
+          description: rowData.meta.description || "",
+          hash: rowData.meta.hash,
           bytes: bytes
-        }).then(function () {
-          return plateRow(factory, plate, meta, bytes, true, false, bound, verified);
-        });
-      }).catch(function () {
-        return plateRow(factory, plate, meta, null, false, false, bound, verified);
+        }).catch(function () {});
+        return { bytes: bytes, cached: false };
       });
+    }).then(function (got) {
+      if (!got || !got.bytes || mineTicket !== ticket) return;
+      applyImage(rowData, got.bytes, got.cached);
+    }).catch(function () {
+      if (mineTicket !== ticket) return;
+      rowData.hashOk = false;
     });
   }
 
-  function loadOne(factory, id) {
+  function loadOne(factory, id, mineTicket) {
     return P.agree(chain, factory, P.callData("photoAt", P.pad256(id))).then(function (hex) {
       var plate = P.addrOf(hex);
       if (!plate) return null;
@@ -2183,15 +2215,19 @@
               return P.addrOf(word) || "";
             }).catch(function () { return ""; })
           : Promise.resolve("");
-        return originP.then(function (origin) {
+        var pinP = P.pinPlate(chain, factory, plate).then(function (pinned) {
+          return pinned;
+        }, function () { return ""; });
+        return Promise.all([originP, pinP]).then(function (pair) {
+          var origin = pair[0];
+          var pinned = pair[1];
+          var expected = P.factoryOf(chain);
+          var bound = !!expected && P.sameAddr(factory, expected) && !!pinned && P.sameAddr(plate, pinned);
+          var row;
           meta.origin = origin;
-          return P.pinPlate(chain, factory, plate).then(function (pinned) {
-            var expected = P.factoryOf(chain);
-            var bound = !!expected && P.sameAddr(factory, expected) && P.sameAddr(plate, pinned);
-            return loadImage(factory, plate, meta, bound, pinned);
-          }, function () {
-            return loadImage(factory, plate, meta, false, "");
-          });
+          row = plateRow(factory, plate, meta, null, true, false, bound, pinned);
+          hydrateImage(row, mineTicket);
+          return row;
         });
       });
     });
@@ -2249,12 +2285,13 @@
       photos.appendChild(el("p", "Loading photographs…")).className = "quiet";
       photos.lastChild.id = "photos-loading";
     }
-    fillRoyalties(factory).then(function () {
-      if (mineTicket !== ticket) return null;
-      return P.agree(chain, factory, P.sel("photoCount"));
-    }).then(function (hex) {
-      if (hex == null) return null;
+    Promise.all([
+      fillRoyalties(factory),
+      P.agree(chain, factory, P.sel("photoCount"))
+    ]).then(function (pair) {
+      var hex = pair[1];
       var uploadP, blockP;
+      if (hex == null) return null;
       if (mineTicket !== ticket) return null;
       count = P.u256(hex);
       factoryCount = count;
@@ -2275,7 +2312,7 @@
       return Promise.all([
         mapLimit(ids, 4, function (id) {
           if (mineTicket !== ticket) return null;
-          return loadOne(factory, id);
+          return loadOne(factory, id, mineTicket);
         }),
         uploadP,
         blockP
@@ -2304,8 +2341,6 @@
     }).then(function (packed) {
       var rowData, key;
       if (!packed || mineTicket !== ticket) return;
-      if (packed.block && packed.block.timestamp != null) chainNow = P.u256(packed.block.timestamp);
-      else chainNow = 0n;
       loaded = packed.list;
       loadedClaims = packed.claims;
       if (packed.upMap) {
@@ -2395,59 +2430,9 @@
     return window.confirm(text) ? Promise.resolve() : Promise.reject(new Error("cancel"));
   }
 
-  function mayNominate(rowData) {
-    var meta = rowData && rowData.meta;
-    if (!armed(rowData) || !mine() || !meta || !meta.nominationAllowed || !meta.parked || meta.nominated || meta.revoked) return false;
-    if (!P.sameAddr(account, meta.title)) return false;
-    return meta.vaultedSince > 0n && chainNow >= meta.vaultedSince + HOLD;
-  }
-
-  function clockStillRunning(meta, now) {
-    if (!meta || !meta.parked || meta.nominated || meta.revoked) return false;
-    if (meta.vaultedSince === 0n) return true;
-    return now < meta.vaultedSince + HOLD;
-  }
-
-  function nominationDaysLeft(meta, now) {
-    var day = 24n * 60n * 60n;
-    var end, left;
-    if (!meta || meta.vaultedSince === 0n || !now) return 30;
-    end = meta.vaultedSince + HOLD;
-    if (now >= end) return 0;
-    left = end - now;
-    return Number((left + day - 1n) / day);
-  }
-
-  function nominationWait(meta) {
-    var wrap = el("div");
-    var at, days, when, vault;
-    vault = (meta && meta.mailbox) || "";
-    days = nominationDaysLeft(meta, chainNow);
-    when = days === 1 ? "1 day" : days + " days";
-    wrap.className = "plate-wait";
-    at = el("p", vault
-      ? "Currently in nomination status at " + vault + "."
-      : "Currently in nomination status.");
-    at.className = "plate-wait-at";
-    wrap.appendChild(at);
-    wrap.appendChild(el("p", "Nomination concludes in " + when + "."));
-    return wrap;
-  }
-
-  function paintNomination(rowData, key) {
-    var i;
-    if (!rowData || !rowData.meta) return;
-    rowData.meta[key] = true;
-    for (i = 0; i < loaded.length; i++) {
-      if (loaded[i] && loaded[i].meta && P.sameAddr(loaded[i].plate, rowData.plate)) loaded[i].meta[key] = true;
-    }
-    showFiltered();
-  }
-
   function onBuy(rowData) {
     var factory = P.factoryOf(chain);
     var price;
-    var below = false;
     if (!factory || !mine() || !rowData.meta.printed) return;
     busy = true;
     P.reassemble(chain, rowData.plate, rowData.meta.hash).then(function () {
@@ -2455,13 +2440,6 @@
     }).then(function (fresh) {
       if (fresh !== rowData.meta.price || fresh <= 0n) throw new Error("price");
       price = fresh;
-      return P.agree(chain, rowData.plate, P.sel("originalPrice")).then(P.u256);
-    }).then(function (original) {
-      if (original > 0n && price < original) {
-        below = true;
-        return warnThen("This sale is below the original price. It will permanently remove this plate’s ability to nominate. This cannot be undone.", true);
-      }
-    }).then(function () {
       return confirmThen("Buy this photograph for " + P.weiToEth(price) + " ETH?");
     }).then(function () {
       return P.listedPair(chain, rowData.plate);
@@ -2480,7 +2458,6 @@
       justBought = rowData.plate || "";
       return sent(hash);
     }).then(function () {
-      if (below) paintNomination(rowData, "revoked");
       say("");
     }).catch(fail);
   }
@@ -2491,12 +2468,8 @@
     return hint;
   }
 
-  function parkExplain(rowData) {
-    var text = "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo; return it to the wallet from which it came.";
-    if (rowData && rowData.meta && rowData.meta.nominationAllowed) {
-      text += " After vaulting for 30 days you can name one new nominated artist to the platform.";
-    }
-    return text;
+  function parkExplain() {
+    return "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo: return it to the wallet from which it came.";
   }
 
   // List, Buyer, and Park sit in Actions. Each one opens its fields in place.
@@ -2605,60 +2578,13 @@
   }
 
   function onRelease(rowData) {
-    var resetClock = false;
-    P.readBlock(chain, "latest").then(function (block) {
-      return P.u256(block.timestamp);
-    }, function () {
-      return 0n;
-    }).then(function (now) {
-      if (clockStillRunning(rowData.meta, now)) {
-        resetClock = true;
-        return warnThen("Leaving the vault now will restart the 30-day waiting period. The nomination potential is not lost, but the clock starts over the next time it is vaulted.", false);
-      }
-    }).then(function () {
-      return confirmThen("Return the photograph to the title holder? Transfers are not allowed to any other address.");
-    }).then(function () {
+    confirmThen("Return the photograph to the title holder? Transfers are not allowed to any other address.").then(function () {
       return gate(rowData);
     }).then(function (pin) {
       return P.send(chain, { kind: "release", data: P.sel("release"), to: pin.plate, from: account });
     }).then(sent).then(function () {
-      say(resetClock
-        ? "Returned from vault. The 30-day waiting period will restart the next time this plate is vaulted."
-        : "The photograph was returned.");
+      say("The photograph was returned.");
     }).catch(fail);
-  }
-
-  function onNominate(rowData, text) {
-    var nominee = P.parseAddr(text);
-    if (!mayNominate(rowData)) {
-      say("This plate cannot nominate from this account yet.");
-      return;
-    }
-    if (!nominee || zero(nominee) || P.sameAddr(nominee, P.factoryOf(chain))) {
-      say("That address cannot be nominated.");
-      return;
-    }
-    warnThen("This uses the plate’s one-time nomination. It cannot be used again.", true).then(function () {
-      return gate(rowData);
-    }).then(function (pin) {
-      return P.send(chain, {
-        kind: "nominate",
-        data: P.callData("nominate", P.pad256(BigInt(nominee))),
-        to: pin.plate,
-        from: account
-      });
-    }).then(sent).then(function () {
-      paintNomination(rowData, "nominated");
-      say("Nomination recorded. This plate’s one-time potential has been used.");
-    }).catch(fail);
-  }
-
-  function onClear(rowData) {
-    confirmThen("Clear the named vault? The photograph stays with the title holder.").then(function () {
-      return gate(rowData);
-    }).then(function (pin) {
-      return P.send(chain, { kind: "clearMailbox", data: P.sel("clearMailbox"), to: pin.plate, from: account });
-    }).then(sent).then(function () { say("The vault name was cleared."); }).catch(fail);
   }
 
   function onWithdraw(rowData) {
@@ -2808,7 +2734,7 @@
       if (devEl) {
         devEl.textContent = "Developer Royalty " + bpsText(chainDev) + ", fixed.";
       }
-      if (artistEl.dataset.touched !== "1") artistEl.value = bpsField(chainArtist);
+      if (artistEl && artistEl.dataset.touched !== "1") artistEl.value = bpsField(chainArtist);
       if (help) {
         help.textContent = "Maximum Size: " + sizeShort(allowed ? cap : P.OPEN_MAX);
       }
@@ -3911,25 +3837,6 @@
     return "'" + String(text).replace(/'/g, "'\\''") + "'";
   }
 
-  // Instructions for a machine that does not have Foundry yet. The page only copies them.
-  var SETUP_PROMPT = [
-    "I want to upload a photo to OnPlate. My machine does not have Foundry or a keystore yet.",
-    "",
-    "1. Install Foundry if it is not already installed.",
-    "2. Create a new Foundry keystore named \"onplate\" (I will type the password when asked).",
-    "3. Confirm that `forge --version` works and that the keystore exists.",
-    "4. When forge created the keystore, it printed a new address that starts with 0x. Show me that address. Then tell me to copy only that 0x address and send it in a direct message on X to @A_is_A so this keystore can be invited to upload. Do not send the password, the keystore file, a seed phrase, or the private key. Only the 0x address.",
-    "5. Tell me when the machine is ready. Do not send any transactions yet.",
-    "",
-    "Once the machine is ready, display this explanation to me:",
-    "",
-    "Foundry is a set of free tools that let a computer talk to Ethereum. One of those tools is called forge. The upload command uses forge.",
-    "",
-    "A keystore is a password-protected file on your computer that holds a private key. The password you just created unlocks that file. When the send runs, the upload asks for that password once so it can sign. The check run does not ask. The private key never leaves your machine.",
-    "",
-    "The keystore is the wallet for this flow. When it was created, forge showed you a new address that starts with 0x. Copy only that address and send it in a direct message on X to @A_is_A so you can be invited. Do not send the password, the keystore file, a seed phrase, or the private key. The upload uses that address as SENDER without unlocking the keystore until the send. That address starts with zero ETH. After you are invited, send the recommended amount of ETH shown on the page to that address from an exchange or another wallet. The upload will only spend the ETH that is already there."
-  ].join("\n");
-
   // The page cannot run forge. This is the command the artist pastes into a terminal.
   // It holds no key, and it does not download the script.
   function scriptCommand() {
@@ -3952,7 +3859,7 @@
     artistName = P.plain(job.artistName || "", 0, 48);
     if (name == null || description == null || artistName == null) return "";
     lines = [
-      "# Photograph downloaded as " + (image.split("/").pop() || "the IMAGE file") + ". Thumbnail downloaded as upload-thumb.png",
+      "# Photograph is in onplate-upload.zip as " + (image.split("/").pop() || "the IMAGE file") + ". Thumbnail is upload-thumb.png in that zip.",
       "# Put the photograph at IMAGE. Edit THUMB= to the full path of upload-thumb.png",
       "OWNER=" + sender,
       "SENDER=" + sender,
@@ -3987,7 +3894,8 @@
     return cmd;
   }
 
-  // The password is typed once in the agent's own terminal on the send.
+  // One prompt for every machine. Install Foundry and create the onplate keystore
+  // only when they are missing. The password is typed once in the agent's terminal.
   // ARTIST stays the royalty recipient. OWNER stays the connected wallet and will own the photograph.
   // SENDER moves to the keystore address when those differ. The keystore signs and pays.
   function agentPrompt() {
@@ -3996,20 +3904,25 @@
     var lines;
     if (!cmd) return "";
     lines = [
-      "I want to upload a photo to OnPlate. Foundry is installed, and the keystore named \"onplate\" is already on this machine. Work in the OnPlate project on this machine, the folder that already contains script/upload-host.js. Do not download the script, and do not look for a public copy.",
+      "I want to upload a photograph to OnPlate. Work in the OnPlate project on this machine, the folder that already contains script/upload-host.js. Do not download the script, and do not look for a public copy.",
+      "",
+      "This click downloaded onplate-upload.zip. Unzip it. It holds prompt.txt, the JPEG named in IMAGE, and upload-thumb.png.",
       "",
       "Use the terminal session you already have. I will type the keystore password there when you add --broadcast. Do not open a new window, a dialog, or a browser. Do not ask me to paste the password into the chat. Do not put the password on a command line, in a file, or in an environment variable. Do not use --password, --password-file, /dev/stdin, or a tmpfs file for the password. Do not read or print the private key. If the send prints that one step is left, the check already worked. Show me that next-step command as the one action I still take. Do not describe it as a failure. I will copy it into a new terminal window and type the password once.",
       "",
-      "1. This click downloaded two files, usually into Downloads: the photograph named in IMAGE, and upload-thumb.png. Copy the photograph to the IMAGE path under testing images/ in the OnPlate project. Use that file. If IMAGE ends with -closer.jpg or -one-store.jpg, that is a packed JPEG from the page. It is not the original camera file, and it is not on disk until this download. Do not use a different photograph. Do not read a browser profile, IndexedDB, or cookies to recover the file. Do not move the thumbnail.",
-      "2. The thumbnail was saved as upload-thumb.png, usually in Downloads. Change the THUMB= line to the full path of that file.",
-      "3. SENDER must be the 0x address of the keystore named \"onplate\". If you already know that address on this machine, use it. Do not run `cast wallet address` and do not decrypt the keystore to look it up. If you do not already know the address, ask me for the 0x address of the onplate keystore only. Then set SENDER to that address. Leave OWNER as written. OWNER is the wallet that will own the photograph. The keystore signs and pays, and the registration gives the photograph to OWNER in that same step. Leave ARTIST as written. ARTIST is only the royalty recipient. Do not ask me for OWNER or ARTIST. Do not set a shell variable named HOME to an Ethereum address. HOME is the Unix home directory.",
-      "4. Run the node command once. It has no --broadcast, so the photograph is only checked and the password is not asked. Show me the content hash it prints near the start. If that hash matches CONFIRM, run the same command again with --broadcast added. You start that second run. I will type the password in the terminal once for that send. That one send stores every remaining group and registers the photograph. If the hash does not match, stop. If the send prints One step left, show me the command it printed. That is the next action, and the check already worked. I copy that command into a new terminal window.",
-      "5. Do not use a password file to skip the prompt. Do not wrap this send in forge. Do not add a trace dump of the photograph. If the keystore is not at ~/.foundry/keystores/onplate, pass --keystore with the full path to that file. Do not set HOME to an address.",
-      "6. If the script says a photograph larger than the open tier needs a nomination, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue. If this keystore has not been invited yet, send only its 0x address in a direct message on X to @A_is_A. Do not send the password, the keystore file, or the private key.",
-      "7. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
-      "8. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
-      "9. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",
-      "10. If the script prints that the chain stored this group, or to run the same command again, or that the deployed code did not match this piece, or that a group stored fewer pieces, this is still the same photograph. Run the same command again with --broadcast. Do not change IMAGE, CONFIRM, OWNER, SENDER, or ARTIST. Do not store from the page. The next run continues from the pieces already on the chain. That line is not a failed photograph.",
+      "1. If `forge --version` fails, install Foundry. Confirm that `forge --version` works before anything else.",
+      "2. If there is no Foundry keystore named \"onplate\", create it. I will type the password when asked. When forge prints the new address that starts with 0x, show me that address. Tell me to copy only that 0x address and send it in a direct message on X to @A_is_A so this keystore can be invited. Do not send the password, the keystore file, a seed phrase, or the private key. Then stop. Do not send any transactions.",
+      "3. If Foundry and the onplate keystore are already on this machine, skip install and keystore create. Continue with this photograph.",
+      "4. Copy the photograph from the unzipped kit to the IMAGE path under testing images/ in the OnPlate project. Use that file. If IMAGE ends with -closer.jpg or -one-store.jpg, that is a packed JPEG from the page. It is not the original camera file, and it is not on disk until this download. Do not use a different photograph. Do not read a browser profile, IndexedDB, or cookies to recover the file. Do not move the thumbnail.",
+      "5. Change the THUMB= line to the full path of upload-thumb.png from the unzipped kit.",
+      "6. SENDER must be the 0x address of the keystore named \"onplate\". If you already know that address on this machine, use it. Do not run `cast wallet address` and do not decrypt the keystore to look it up. If you do not already know the address, ask me for the 0x address of the onplate keystore only. Then set SENDER to that address. Leave OWNER as written. OWNER is the wallet that will own the photograph. The keystore signs and pays, and the registration gives the photograph to OWNER in that same step. Leave ARTIST as written. ARTIST is only the royalty recipient. Do not ask me for OWNER or ARTIST. Do not set a shell variable named HOME to an Ethereum address. HOME is the Unix home directory.",
+      "7. Run the node command once. It has no --broadcast, so the photograph is only checked and the password is not asked. Show me the content hash it prints near the start. If that hash matches CONFIRM, run the same command again with --broadcast added. You start that second run. I will type the password in the terminal once for that send. That one send stores every remaining group and registers the photograph. If the hash does not match, stop. If the send prints One step left, show me the command it printed. That is the next action, and the check already worked. I copy that command into a new terminal window.",
+      "8. Do not use a password file to skip the prompt. Do not wrap this send in forge. Do not add a trace dump of the photograph. If the keystore is not at ~/.foundry/keystores/onplate, pass --keystore with the full path to that file. Do not set HOME to an address.",
+      "9. If the script says a photograph larger than 4 pieces needs an invitation, stop. Do not authorize the account, do not switch to another key, and do not use a factory owner or a test key. A photograph of 4 pieces or fewer can continue. If this keystore has not been invited yet, send only its 0x address in a direct message on X to @A_is_A. Do not send the password, the keystore file, or the private key.",
+      "10. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
+      "11. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
+      "12. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",
+      "13. If the script prints that the chain stored this group, or to run the same command again, or that the deployed code did not match this piece, or that a group stored fewer pieces, this is still the same photograph. Run the same command again with --broadcast. Do not change IMAGE, CONFIRM, OWNER, SENDER, or ARTIST. Do not store from the page. The next run continues from the pieces already on the chain. That line is not a failed photograph.",
       "",
       "If this same account already stored some pieces, the script continues from the first missing piece. A progress entry that was never mined is stored again. A different account is refused, because it would store a second copy."
     ];
@@ -4191,6 +4104,54 @@
     return prefix + " The thumbnail is not ready.";
   }
 
+  function utf8Bytes(text) {
+    return new TextEncoder().encode(String(text || ""));
+  }
+
+  function saveBlob(bytes, name, type) {
+    var blob, link;
+    blob = new Blob([bytes], { type: type || "application/octet-stream" });
+    link = el("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { drop(link.href); }, 1000);
+  }
+
+  function thumbBytes() {
+    var bytes = P.hexToBytes(job && job.thumb);
+    if (!bytes || bytes.length < 29 || bytes.length > 4096 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return null;
+    return bytes;
+  }
+
+  // Local STORE zip: prompt.txt, the JPEG being stored, upload-thumb.png.
+  function downloadKit(promptText) {
+    var imageBytes = planFileBytes(job);
+    var imageName = safeFileName(job && job.fileName);
+    var thumb = thumbBytes();
+    var zip;
+    if (!job || !promptText || !imageBytes || !imageBytes.length || !imageName || !thumb) return false;
+    if (!window.OnPlateZip || typeof window.OnPlateZip.pack !== "function") return false;
+    try {
+      zip = window.OnPlateZip.pack([
+        { name: "prompt.txt", bytes: utf8Bytes(promptText) },
+        { name: imageName, bytes: imageBytes },
+        { name: "upload-thumb.png", bytes: thumb }
+      ]);
+    } catch (e) {
+      return false;
+    }
+    saveBlob(zip, "onplate-upload.zip", "application/zip");
+    return true;
+  }
+
+  function copyKitNote(prefix, promptText) {
+    if (downloadKit(promptText)) return prefix + " Upload kit downloaded.";
+    return copyDownloadNote(prefix + " The zip was not built.");
+  }
+
   function paintMore() {
     var host = document.getElementById("more-extra");
     var lines, i, p, image;
@@ -4256,34 +4217,23 @@
 
   function paintAgent() {
     var host = document.getElementById("agent-actions");
-    var cmd, pre, promptBtn, copyBtn, hint;
+    var cmd, pre, promptBtn, hint;
     if (!host) return;
     host.replaceChildren();
     if (!job) return;
     cmd = scriptCommand();
-    promptBtn = el("button", "Copy agent prompt (for artists without Foundry)");
+    promptBtn = el("button", "Copy agent prompt");
     promptBtn.type = "button";
-    promptBtn.title = "Copies instructions for this photograph and downloads the photograph and the thumbnail. Nothing is sent.";
+    promptBtn.title = "Copies one prompt and downloads a zip with that prompt, the photograph, and the thumbnail. Nothing is sent.";
     promptBtn.addEventListener("click", function () {
       var text = agentPrompt();
       if (!text) {
         flashCopyButton(promptBtn, P.batchOf(chain) ? "The command is not ready yet." : "This chain has no batch contract yet, so the command is not ready.");
         return;
       }
-      copyPlain(text, copyDownloadNote("Prompt copied."), promptBtn);
+      copyPlain(text, copyKitNote("Prompt copied.", text), promptBtn);
     });
-    host.appendChild(copyBlock(promptBtn, "Use this prompt after completing the setup prompt above. Paste it into an agent that can use a terminal, such as Grok, Claude Code, or Hermes. It fills in this photograph and uses the onplate keystore. The photograph and a thumbnail download for the upload. The password is typed once when the send starts. If the agent cannot take that password, it gives you one command to copy into a new terminal window."));
-    copyBtn = el("button", "Copy agent command (for artists with Foundry)");
-    copyBtn.type = "button";
-    copyBtn.title = "Copies the command and downloads the photograph and the thumbnail. Nothing is sent.";
-    copyBtn.addEventListener("click", function () {
-      if (!scriptCommand()) {
-        flashCopyButton(copyBtn, P.batchOf(chain) ? "The command is not ready yet." : "This chain has no batch contract yet, so the command is not ready.");
-        return;
-      }
-      copyScript(copyDownloadNote("Command copied."), copyBtn);
-    });
-    host.appendChild(copyBlock(copyBtn, "Have Foundry? Paste this command into an agent such as Grok, Claude Code, or Hermes. The photograph and a thumbnail download for the upload. Your private key stays on your machine. This page never sees it."));
+    host.appendChild(copyBlock(promptBtn, "Paste this into an agent that can use a terminal, such as Grok Build or Claude Code. The same prompt installs Foundry and creates the onplate keystore when they are missing, then stores this photograph. A zip downloads with the prompt, the JPEG, and the thumbnail. The password is typed once when the send starts. If the agent cannot take that password, it gives you one command to copy into a new terminal window."));
     pre = el("pre", "");
     pre.className = "command";
     pre.id = "script-command";
@@ -4991,9 +4941,6 @@
     if (preparing || busy) return;
     prepare();
   });
-  listen("copy-setup", "click", function () {
-    copyPlain(SETUP_PROMPT, "Setup prompt copied.", this);
-  });
   function sizeText(n) {
     var bytes = Number(n) || 0;
     if (bytes < 1000) return bytes + " bytes";
@@ -5161,6 +5108,7 @@
     var open;
     ev.stopPropagation();
     if (!menu) return;
+    if (!menu.childNodes.length) paintArtists();
     open = menu.hidden;
     menu.hidden = !open;
     this.setAttribute("aria-expanded", open ? "true" : "false");
@@ -5195,6 +5143,7 @@
     }
   });
 
+  paintArtists();
   watchWallet();
   refresh();
 })();

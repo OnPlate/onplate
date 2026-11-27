@@ -34,4 +34,4 @@ Naive tester listed Green Circle at 0.001 ETH, bought it as `0x2103…D11a`, par
 
 `app.js?v=21` clears the “you just bought / listed / returned” banners when the connected account changes.
 
-Still open after the sale pass: List/Park look like text links; Buy lives in collapsed Actions without the price on the button; Return asks twice and the first dialog is about nomination; “named vault” jargon; private Buyer field has almost no help; phone Details wrap hex; repeating Details/List/Park labels; Withdraw after a sale is easy to miss; packing Look closer only for larger files; Favorite is the unlabeled Pepe.
+Sale-path copy on the 2026-11-26 factory: Buy names the price; Actions open when a photograph is buyable or has a withdrawable balance; Details/List/Park use the photograph’s name; parked copy is “Parked at / Not parked”; Return is one dialog; private buyer has a help line; phone Details shorten 0x under 640px. Nomination is gone from this factory. Look closer stays only for larger files. Favorite stays the unlabeled Pepe.

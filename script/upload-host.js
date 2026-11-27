@@ -992,7 +992,7 @@ async function loadJob(opts) {
   if (!pieces || pieces > maxChunks) die("pieces");
   if (!canAdd && pieces > openMax) {
     console.log("pieces", pieces);
-    console.log("A photograph larger than the open tier needs a nomination. Nothing was sent.");
+    console.log("A photograph larger than 4 pieces needs an invitation. Nothing was sent.");
     die("open");
   }
   if (!OnPlate.sameAddr(home, sender)) {

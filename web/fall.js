@@ -39,13 +39,9 @@
     parked: "0x355a4b9b",
     price: "0x57ed4b2f",
     buyer: "0xbf8ed6b6",
-    artist: "0x3a34842e",
-    orig: "0x76a24f25",
-    nom: "0x8450ccb5",
-    rev: "0xbd891b1e",
-    since: "0x78e6f6d2"
+    artist: "0x3a34842e"
   };
-  var EXTRA = ["title", "holder", "mail", "parked", "price", "buyer", "artist", "orig", "nom", "rev", "since"];
+  var EXTRA = ["title", "holder", "mail", "parked", "price", "buyer", "artist"];
   var note = document.getElementById("note");
   var list = document.getElementById("list");
   var K = window.OnPlateKeccak;
@@ -228,26 +224,14 @@
     dl.appendChild(el("dd", value, hash ? "hash" : ""));
   }
 
-  function nomLine(m, now) {
-    var hold = 2592000n;
-    if (m.rev) return "This plate can no longer nominate.";
-    if (m.nom) return "This plate has used its nomination.";
-    if (m.parked && m.since > 0n && now >= m.since + hold) return "This plate can nominate once.";
-    if (m.parked) return "In the vault. The 30-day wait is still running.";
-    return "This plate can nominate a new artist after being vaulted for 30 days.";
-  }
-
-  function viewOf(m, now) {
+  function viewOf(m) {
     return {
       title: m.title || "",
       holder: m.holder || "",
       artist: m.artist || "none",
       listing: m.price > 0n && !m.parked ? "Listed for " + eth(m.price) + " ETH" : "Not listed.",
-      parked: m.parked ? "with " + (m.mail || "") : "",
-      vault: !m.parked && m.mail ? "named " + m.mail + ". The photograph is not parked." : "",
-      buyer: m.buyer ? "Only " + m.buyer + " may buy." : "",
-      orig: m.orig > 0n ? eth(m.orig) + " ETH" : "",
-      nom: nomLine(m, now)
+      parked: m.parked ? "Parked at " + (m.mail || "") : "Not parked",
+      buyer: m.buyer ? "Only " + m.buyer + " may buy." : ""
     };
   }
 
@@ -268,11 +252,8 @@
       fact(dl, "Current holder", view.holder);
       fact(dl, "Artist", view.artist);
       fact(dl, "Listing", view.listing);
-      if (view.parked) fact(dl, "Parked", view.parked);
-      if (view.vault) fact(dl, "Vault", view.vault);
+      fact(dl, "Parked", view.parked);
       if (view.buyer) fact(dl, "Buyer", view.buyer);
-      if (view.orig) fact(dl, "Original price", view.orig);
-      fact(dl, "Nomination", view.nom);
     }
     fact(dl, "Content hash", hash, true);
     box.appendChild(dl);
@@ -289,34 +270,10 @@
       return {
         title: who("title"), holder: who("holder"), artist: who("artist"),
         mail: who("mail"), buyer: who("buyer"),
-        parked: num(raw.parked) !== 0n, nom: num(raw.nom) !== 0n, rev: num(raw.rev) !== 0n,
-        price: num(raw.price), orig: num(raw.orig), since: num(raw.since)
+        parked: num(raw.parked) !== 0n,
+        price: num(raw.price)
       };
     });
-  }
-
-  function nowOf() {
-    var urls = URLS[CHAIN] || [], i = 0;
-    function step() {
-      var url;
-      if (i >= urls.length) return Promise.resolve(0n);
-      url = urls[i];
-      i += 1;
-      return fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["latest", false] }),
-        signal: AbortSignal.timeout(READ_MS)
-      }).then(function (res) {
-        if (!res.ok) throw new Error("http");
-        return res.json();
-      }).then(function (msg) {
-        var t = msg && msg.result && msg.result.timestamp;
-        if (typeof t !== "string") throw new Error("time");
-        return BigInt(t);
-      }).catch(step);
-    }
-    return step();
   }
 
   function showCache() {
@@ -385,7 +342,6 @@
   }
 
   function fromChain() {
-    return nowOf().then(function (now) {
     return agree(FACTORY, SEL.photoCount).then(function (hex) {
       var count = BigInt("0x" + word(hex));
       var ids = [];
@@ -412,7 +368,7 @@
               var name = plain(textOf(got[0]), 1, 48);
               var description = plain(textOf(got[1]), 0, 240);
               var hash = "0x" + word(got[2]);
-              var view = viewOf(got[3], now);
+              var view = viewOf(got[3]);
               return imageOf(plate, hash).then(function (bytes) {
                 card(frag, plate, name, description, hash, bytes, view);
                 var copy = new Uint8Array(bytes.length);
@@ -438,7 +394,6 @@
         say("");
         return idbPut(indexKey(), { plates: plates });
       });
-    });
     });
   }
 

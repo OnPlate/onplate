@@ -21,7 +21,6 @@ interface IPlateSource {
         string calldata name_,
         string calldata description_,
         string calldata artistName_,
-        bool nominationAllowed_,
         address book_,
         bytes calldata thumbnail_,
         uint256 pieceExpect_
@@ -41,15 +40,12 @@ interface IBookSource {
 /// Transfer itself changes none of those, and it changes no photograph.
 /// The whitelist is only an upload gate. Replacing the page writes no plate.
 /// The owner authorizes any address with `setAuthorized`, and can remove one.
-/// A vaulted plate may add one address through `nominate`. That call cannot remove one.
-/// Removing the address does not give that plate another nomination.
 /// The owner, or an address on the whitelist, may add a photograph up to the full piece cap.
 /// Any other address may add a photograph of at most `OPEN_MAX` pieces.
 /// `linkPhoto` is one call that opens the book, writes the chunk addresses, seals, and registers.
-/// A stranger may use it for at most `OPEN_MAX` pieces. A nominated signer, the owner, or a
+/// A stranger may use it for at most `OPEN_MAX` pieces. A whitelisted signer, the owner, or a
 /// restoring origin may use it up to `MAX_CHUNKS`. A larger photograph that does not take that
 /// path still uses `openBook`, `addChunks`, `sealBook`, and `addPhoto`.
-/// A photograph registered by an address that is not on the whitelist cannot nominate. The flag is fixed at registration.
 /// The signer pays and must be allowed to register that size. The book's artist becomes the title.
 /// On the first registration of a chunk list, that artist is also the origin.
 /// A call that does not name a home uses the signer. Naming a home gives that wallet the photograph in the same registration.
@@ -86,13 +82,11 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
     struct Lineage {
         address origin;
         bool extinguished;
-        bool chanceOpen;
     }
 
     /// The plate that currently owns this ordered chunk list. Empty when none does.
     mapping(bytes32 => address) public liveWork;
     /// Set on the first registration. `extinguished` means the origin burned it.
-    /// `chanceOpen` is the one nomination life of that list.
     mapping(bytes32 => Lineage) public lineage;
     /// Large works a deauthorized origin may still restore, counted by piece count.
     /// A new file does not spend this, and it still needs the whitelist.
@@ -152,16 +146,8 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
 
     /// Adds to the upload whitelist when `ok` is true, and removes when it is false.
     /// `canAdd` is the only reader. A plate, a chunk, and a royalty are not written.
-    /// Nomination state does not gate this call. Removing an address does not clear `nominated` on a plate.
     function setAuthorized(address artist, bool ok) external onlyOwner {
         _authorize(artist, ok);
-    }
-
-    /// A registered plate adds one whitelist address. It cannot remove one.
-    /// The plate marks its nomination used before this call. This function does not read that flag.
-    function authorizeNominee(address nominee) external nonReentrant {
-        if (!isPhoto[msg.sender]) revert NotAllowed();
-        _authorize(nominee, true);
     }
 
     /// Names the piece helper. The owner calls this once after deploy.
@@ -263,7 +249,7 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
     }
 
     /// One transaction that opens the book, writes the chunk addresses, seals, and registers.
-    /// A stranger may pass at most `OPEN_MAX` pieces. A nominated signer, the owner, or a
+    /// A stranger may pass at most `OPEN_MAX` pieces. A whitelisted signer, the owner, or a
     /// restoring origin may pass up to `MAX_CHUNKS`. Addresses are written in batches of `APPEND_MAX`.
     /// `text` is `abi.encode(name, description, artistName, thumbnail)`.
     function linkPhoto(
@@ -370,7 +356,7 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         if (!isBook[m.book]) revert BadChunk();
         address title_ = ChunkBook(m.book).artist();
         _useBook(m.book, title_);
-        (bytes32 key, bool chance, bool restoring) = _prepareWork(m.book);
+        (bytes32 key, bool restoring) = _prepareWork(m.book);
         uint256 expect_ = ChunkBook(m.book).chunkCount();
         uint256 id = ++photoCount;
         OnPlate.Terms memory terms = OnPlate.Terms({
@@ -382,7 +368,7 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
             artist: m.artist
         });
         plate = IPlateSource(plates).deploy(
-            terms, m.name, m.description, m.artistName, chance, m.book, m.thumbnail, expect_
+            terms, m.name, m.description, m.artistName, m.book, m.thumbnail, expect_
         );
         if (plate == address(0) || plate == address(this) || plate == m.book || plate.code.length == 0) revert Hook();
         if (plate == title_) revert Hook();
@@ -390,8 +376,8 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         OnPlate made = OnPlate(plate);
         if (made.factory() != address(this) || made.book() != m.book || made.plateId() != id) revert Hook();
         if (made.contentHash() != m.contentHash || made.title() != title_) revert Hook();
-        if (made.nominationAllowed() != chance || made.pieceExpect() != expect_) revert Hook();
-        _finishWork(key, plate, chance, restoring);
+        if (made.pieceExpect() != expect_) revert Hook();
+        _finishWork(key, plate, restoring);
         photoAt[id] = plate;
         isPhoto[plate] = true;
         emit PhotoAdded(id, plate, msg.sender);
@@ -426,9 +412,7 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         if (holder == address(0)) revert Hook();
         if (holder == row.origin) {
             row.extinguished = true;
-            row.chanceOpen = false;
         } else {
-            row.chanceOpen = made.nominationAllowed() && !made.nominated() && !made.nominationRevoked();
             uint256 count = ChunkBook(made.book()).chunkCount();
             if (count > PlateLimits.OPEN_MAX) restores[row.origin][count] += 1;
         }
@@ -449,8 +433,8 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         return restores[who][count] > 0;
     }
 
-    /// Reads the list's life before the plate is deployed. The chance is fixed here.
-    function _prepareWork(address book) internal view returns (bytes32 key, bool chance, bool restoring) {
+    /// Reads the list's life before the plate is deployed.
+    function _prepareWork(address book) internal view returns (bytes32 key, bool restoring) {
         key = workKey(book);
         Lineage memory row = lineage[key];
         if (row.extinguished) revert WorkEnded();
@@ -460,11 +444,10 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         if (restoring && (row.origin != msg.sender || ChunkBook(book).artist() != msg.sender)) revert WorkTaken();
         uint256 count = ChunkBook(book).chunkCount();
         if (count > PlateLimits.OPEN_MAX && !canAdd(msg.sender) && !restoring) revert NotAllowed();
-        chance = restoring ? row.chanceOpen : canAdd(msg.sender);
     }
 
     /// Records the origin on the first registration. A restore spends one large-work credit.
-    function _finishWork(bytes32 key, address plate, bool chance, bool restoring) internal {
+    function _finishWork(bytes32 key, address plate, bool restoring) internal {
         if (liveWork[key] != address(0)) revert WorkTaken();
         Lineage storage row = lineage[key];
         if (row.extinguished) revert WorkEnded();
@@ -472,7 +455,6 @@ contract OnPlateFactory is Ownable, ReentrancyGuard {
         if (row.origin == address(0)) {
             if (restoring) revert Hook();
             row.origin = artist_;
-            row.chanceOpen = chance;
         } else if (row.origin != msg.sender || artist_ != msg.sender) {
             revert WorkTaken();
         }

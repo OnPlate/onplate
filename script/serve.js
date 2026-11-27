@@ -11,7 +11,8 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
-  ".svg": "image/svg+xml"
+  ".svg": "image/svg+xml",
+  ".md": "text/plain; charset=utf-8"
 };
 
 function headers() {

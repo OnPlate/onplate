@@ -13,10 +13,6 @@ interface IFactoryDev {
     function plates() external view returns (address);
 }
 
-interface IFactoryAuth {
-    function authorizeNominee(address nominee) external;
-}
-
 interface IFactoryWork {
     function releaseWork() external;
 }
@@ -28,10 +24,8 @@ interface IFactoryWork {
 /// Sale, park, and return are the only moves. Approvals and standard transfers revert.
 /// Royalties are fixed here. The dev recipient is copied from the factory at creation.
 /// Buy credits balances. Recipients withdraw. Buy does not call out.
-/// The 30-day clock starts only when the plate is vaulted. Return clears it.
-/// After that wait, the title may nominate one address. The vault cannot. There is no age check.
-/// A success spends that chance for good, even if the owner later removes the address.
-/// A sale under the first sale price revokes an unused chance.
+/// Parking is added security for a mounted photograph. The title names a vault
+/// and the token moves there in the same call. That vault can only send it home.
 contract OnPlate is ERC721, ReentrancyGuard {
     uint256 public constant TOKEN = 1;
     uint256 public constant BPS = 10_000;
@@ -69,22 +63,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
     uint256 public accounted;
     /// Zero means any buyer. Any other address is the only address that may buy.
     address public allowedBuyer;
-    /// True after one successful nomination. The owner removing that address does not clear it.
-    bool public nominated;
-    /// True after a sale below the first sale price. It does not come back.
-    /// It does not remove an address that is already on the whitelist.
-    bool public nominationRevoked;
-    /// The time of the latest vault. This is the only nomination clock.
-    /// Zero before the first vault, and zero again after return. Wallet time is not stored.
-    uint256 public vaultedSince;
-    /// The first `buy` price. Zero means this plate has not sold.
-    uint256 public originalPrice;
-    /// True when the registering account was already allowed to add a full photograph.
-    /// An open-tier plate stays false. A later whitelist does not change this plate.
-    bool public immutable nominationAllowed;
-
-    /// How long the current vault must last before `nominate` can succeed.
-    uint256 public constant HOLD = 30 days;
 
     /// The chunk addresses live here. The image bytes do not.
     address private _book;
@@ -110,7 +88,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
     error Nothing();
     error Unpaid();
     error NotBuyer();
-    error Nomination();
     error NotHolder();
 
     event Listed(uint256 price);
@@ -121,8 +98,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
     event MailboxCleared();
     event Withdrawn(address indexed to, uint256 amount);
     event BuyerSet(address indexed buyer);
-    event Nominated(address indexed nominee, address indexed by);
-    event NominationRevoked(uint256 salePrice);
     event Burned(address indexed holder);
 
     constructor(
@@ -131,7 +106,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
         string memory name_,
         string memory description_,
         string memory artistName_,
-        bool nominationAllowed_,
         address book_,
         bytes memory thumbnail_,
         uint256 pieceExpect_
@@ -159,7 +133,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
         artistRecipient = _artist(terms);
         description = description_;
         artistName = artistName_;
-        nominationAllowed = nominationAllowed_;
         thumbnail = thumbnail_;
         pieceExpect = pieceExpect_;
         _boundBook(factory_, terms.title, book_);
@@ -203,26 +176,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
             mstore(add(dest, size), 0)
             mstore(0x40, add(dest, and(add(size, 31), not(31))))
         }
-    }
-
-    /// True while vaulted, with the one nomination unused and not revoked.
-    /// The 30-day wait is not part of this view. Return makes it false without spending the chance.
-    function nominationOpen() public view returns (bool) {
-        return parked() && !nominated && !nominationRevoked;
-    }
-
-    /// The title, after this vault has lasted `HOLD`. The vault cannot nominate.
-    /// One success sets `nominated` before the factory is called. That flag stays set.
-    /// The owner can still remove the address. The plate cannot nominate again.
-    /// `msg.sender` is the caller. A contract that only forwards the call is not the title.
-    function nominate(address nominee) external nonReentrant {
-        if (!nominationAllowed || !parked() || nominated || nominationRevoked) revert Nomination();
-        uint256 since = vaultedSince;
-        if (since == 0 || block.timestamp < since + HOLD) revert Nomination();
-        if (msg.sender != title) revert Nomination();
-        nominated = true;
-        IFactoryAuth(factory).authorizeNominee(nominee);
-        emit Nominated(nominee, msg.sender);
     }
 
     /// True only while the named vault holds the token.
@@ -285,13 +238,6 @@ contract OnPlate is ERC721, ReentrancyGuard {
         _selling = true;
         _update(buyer, TOKEN, address(0));
         _selling = false;
-        // The first sale stores its price. A later sale under that price revokes the nomination.
-        if (originalPrice == 0) {
-            originalPrice = cost;
-        } else if (!nominationRevoked && cost < originalPrice) {
-            nominationRevoked = true;
-            emit NominationRevoked(cost);
-        }
         emit Bought(buyer, seller, cost);
     }
 
@@ -493,14 +439,10 @@ contract OnPlate is ERC721, ReentrancyGuard {
         }
         if (_parking) {
             if (from != title || to != mailbox || mailbox == address(0)) revert Hook();
-            // The 30-day clock starts here, and only here. A new vault replaces the old time.
-            vaultedSince = block.timestamp;
             return super._update(to, id, address(0));
         }
         if (_releasing) {
             if (from != mailbox || to != title || mailbox == address(0)) revert Hook();
-            // Return clears the clock. It does not mark the nomination used.
-            vaultedSince = 0;
             return super._update(to, id, address(0));
         }
         revert Hook();

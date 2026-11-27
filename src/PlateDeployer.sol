@@ -29,12 +29,11 @@ contract PlateDeployer {
         string calldata name_,
         string calldata description_,
         string calldata artistName_,
-        bool nominationAllowed_,
         address book_,
         bytes calldata thumbnail_,
         uint256 pieceExpect_
     ) external returns (address plate) {
         if (msg.sender != factory) revert Hook();
-        plate = address(new OnPlate(factory, terms, name_, description_, artistName_, nominationAllowed_, book_, thumbnail_, pieceExpect_));
+        plate = address(new OnPlate(factory, terms, name_, description_, artistName_, book_, thumbnail_, pieceExpect_));
     }
 }

@@ -112,7 +112,7 @@ button {
   text-underline-offset: 0.18em;
 }
 button[disabled] { opacity: 0.4; cursor: default; }
-#prepare, button.solid {
+#prepare, button.solid, a.solid {
   background: #1f3a2c;
   color: #f4f1ea;
   text-decoration: none;
@@ -848,4 +848,101 @@ footer.foot .byline a {
 }
 @media (prefers-reduced-motion: reduce) {
   #prepare.working { animation: none; }
+}
+
+.hero-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.85rem 1.25rem;
+  margin-left: auto;
+  align-items: baseline;
+}
+.hero-nav a {
+  color: #1b2c22;
+  text-decoration-color: #8d7444;
+  text-underline-offset: 0.18em;
+}
+.bar .mark[href] {
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+main.hero {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.4rem 1.75rem 3.2rem;
+}
+main.hero h1 {
+  margin: 0.15rem 0 0.85rem;
+  font-size: 2.35rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+main.hero h2 {
+  margin: 2.1rem 0 0.55rem;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+main.hero .kicker {
+  margin: 0;
+  color: #8d7444;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+main.hero .lede {
+  font-size: 1.15rem;
+  max-width: 38rem;
+}
+main.hero .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.85rem 1.4rem;
+  margin: 1.4rem 0 0;
+}
+main.hero .hero-actions a.solid {
+  text-decoration: none;
+  padding: 0.45rem 1.05rem;
+}
+.hero-who,
+.hero-examples {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+.hero-who li { margin: 0 0 0.7rem; }
+.hero-examples {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.4rem 1.1rem;
+  margin-top: 1rem;
+}
+.hero-examples figure { margin: 0; }
+.hero-examples img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #e7efe6;
+}
+.hero-examples figcaption {
+  margin: 0.45rem 0 0;
+  color: #4e6356;
+  font-size: 0.92rem;
+}
+.hero-examples figcaption strong {
+  display: block;
+  color: #1b2c22;
+  font-weight: 400;
+}
+@media (min-width: 720px) {
+  .hero-examples { grid-template-columns: 1fr 1fr; }
+  .hero-examples li:last-child { grid-column: 1 / -1; max-width: 22rem; }
+}
+@media (max-width: 640px) {
+  main.hero { padding: 0.6rem 1.1rem 2.4rem; }
+  main.hero h1 { font-size: 1.85rem; }
+  .facts dd.addr { white-space: nowrap; overflow-wrap: normal; }
 }

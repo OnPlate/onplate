@@ -42,7 +42,7 @@
   };
   var CHAIN_ID = { mainnet: 1, sepolia: 11155111, anvil: 31337 };
   var CHAIN_HEX = { mainnet: "0x1", sepolia: "0xaa36a7", anvil: "0x7a69" };
-  var FACTORIES = { mainnet: "", sepolia: "0xA4538835b53e19A5ad2B4b21104FF8DEbAd9B520" };
+  var FACTORIES = { mainnet: "", sepolia: "0x851eafe44d877D8A112eafb1cAF2A31Aca0d60CF" };
   var SIG = {
     photoCount: "photoCount()",
     photoAt: "photoAt(uint256)",
@@ -73,7 +73,6 @@
     openBook: "openBook(uint256)",
     openBookHome: "openBook(uint256,address)",
     artistName: "artistName()",
-    nominationAllowed: "nominationAllowed()",
     openMax: "openMax()",
     addChunks: "addChunks(address,address[])",
     sealBook: "sealBook(address)",
@@ -98,11 +97,6 @@
     thumbnail: "thumbnail()",
     isPhoto: "isPhoto(address)",
     tokenURI: "tokenURI(uint256)",
-    originalPrice: "originalPrice()",
-    nominated: "nominated()",
-    nominationRevoked: "nominationRevoked()",
-    vaultedSince: "vaultedSince()",
-    nominate: "nominate(address)",
     createPieces: "createPieces(bytes[])",
     printed: "printed()",
     pieceExpect: "pieceExpect()",
@@ -138,7 +132,6 @@
     linkPhoto: "0xea7daa0f",
     linkPhotoHome: "0x96597d16",
     artistName: "0x5b2f515b",
-    nominationAllowed: "0x554d6b44",
     openMax: "0xc2773d4e",
     openBook: "0xbdc2bde3",
     openBookHome: "0xb5a3d743",
@@ -165,11 +158,6 @@
     thumbnail: "0x5afc2ab4",
     isPhoto: "0x0b08ad68",
     tokenURI: "0xc87b56dd",
-    originalPrice: "0x76a24f25",
-    nominated: "0x8450ccb5",
-    nominationRevoked: "0xbd891b1e",
-    vaultedSince: "0x78e6f6d2",
-    nominate: "0xb332180b",
     createPieces: "0x8d580411",
     printed: "0xa10654f2",
     pieceExpect: "0x354bc1a6",
@@ -179,19 +167,19 @@
   };
   var SEND = {
     addPhoto: 1, linkPhoto: 1, openBook: 1, addChunks: 1, sealBook: 1, list: 1, cancel: 1, buy: 1,
-    setAllowedBuyer: 1, setMailbox: 1, release: 1, clearMailbox: 1, withdraw: 1, nominate: 1, burn: 1
+    setAllowedBuyer: 1, setMailbox: 1, release: 1, clearMailbox: 1, withdraw: 1, burn: 1
   };
   var OFF = "onplate-off";
   var planStore = null;
   // Anvil uses this address, or ?batch= on localhost. Mainnet stays empty.
   var BATCHES = {
     mainnet: "",
-    sepolia: "0xdd275A792eD54b723da035717CA16b4c8Ee64367",
+    sepolia: "0xc623d30639239485114dD20B0dC6D98E342cfd0d",
     anvil: "0x663F3ad617193148711d28f5334eE4Ed07016602"
   };
   // Public Sepolia nodes refuse eth_getLogs from block 0 (50,000-block cap).
   // Factory and ChunkBatch were created in this block. Anvil starts at 0.
-  var LOG_START = { sepolia: 12190877 };
+  var LOG_START = { sepolia: 12220965 };
   var LOG_WINDOW = 40000n;
 
   function utf8(s) {
@@ -771,7 +759,7 @@
   }
 
   // One call that opens, links, seals, and registers. A stranger still stops at OPEN_MAX
-  // on the factory. A nominated signer may pass up to CONTRACT_CHUNKS addresses.
+  // on the factory. A whitelisted signer may pass up to CONTRACT_CHUNKS addresses.
   // Pass home when the signer is not the title wallet. The zero address is refused.
   function encodeLinkPhoto(name, description, artistName, hashHex, chunks, thumb, devBps, artistBps, artist, home) {
     var hash = String(hashHex || "").toLowerCase().replace(/^0x/, "");
@@ -883,7 +871,6 @@
       ["name", sel("name")],
       ["description", sel("description")],
       ["artistName", sel("artistName")],
-      ["nominationAllowed", sel("nominationAllowed")],
       ["contentHash", sel("contentHash")],
       ["devBps", sel("devBps")],
       ["artistBps", sel("artistBps")],
@@ -897,10 +884,6 @@
       ["ownerOf", sel("ownerOf") + pad256(1)],
       ["thumbnail", sel("thumbnail")],
       ["chunkCount", sel("chunkCount")],
-      ["originalPrice", sel("originalPrice")],
-      ["nominated", sel("nominated")],
-      ["nominationRevoked", sel("nominationRevoked")],
-      ["vaultedSince", sel("vaultedSince")],
       ["printed", sel("printed")],
       ["pieceExpect", sel("pieceExpect")],
       ["book", sel("book")]
@@ -963,7 +946,6 @@
       name: name,
       description: description,
       artistName: artistName || "",
-      nominationAllowed: flag(fields.nominationAllowed),
       hash: hash,
       devBps: u256(fields.devBps),
       artistBps: u256(fields.artistBps),
@@ -977,10 +959,6 @@
       holder: addrOf(fields.ownerOf),
       thumbnail: thumb,
       chunkCount: u256(fields.chunkCount),
-      originalPrice: u256(fields.originalPrice),
-      nominated: flag(fields.nominated),
-      revoked: flag(fields.nominationRevoked),
-      vaultedSince: u256(fields.vaultedSince),
       printed: flag(fields.printed),
       pieceExpect: u256(fields.pieceExpect),
       book: addrOf(fields.book)
@@ -1245,7 +1223,7 @@
         if (data !== want) return Promise.reject(new Error("selector"));
         if (typeof tx.price !== "bigint" || tx.price <= 0n) return Promise.reject(new Error("price"));
         value = hexQty(tx.price);
-      } else if (kind === "list" || kind === "setMailbox" || kind === "setAllowedBuyer" || kind === "nominate" || kind === "openBook" || kind === "sealBook") {
+      } else if (kind === "list" || kind === "setMailbox" || kind === "setAllowedBuyer" || kind === "openBook" || kind === "sealBook") {
         if (data.length !== 10 + 64) return Promise.reject(new Error("selector"));
       } else if (kind !== "addPhoto" && kind !== "addChunks" && kind !== "linkPhoto" && data.length !== 10) {
         return Promise.reject(new Error("selector"));
@@ -3046,7 +3024,7 @@
         plan.appendMax = max;
         // A book that is already open keeps the four calls, so a half-finished upload can resume.
         // An older factory has no linkPhoto, so it keeps the four calls as well.
-        // A nominated signer (or the owner) may link up to one addChunks batch in that same call.
+        // A whitelisted signer (or the owner) may link up to one addChunks batch in that same call.
         if (oneCall && n > 0 && !started && (n <= OPEN_MAX || allowed) && n <= max) {
           return linkOnce(chain, plan, note);
         }
