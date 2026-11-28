@@ -13,13 +13,20 @@
 <meta name="twitter:title" content="OnPlate">
 <meta name="twitter:description" content="OnPlate keeps the art itself on Ethereum so the original file, or a copy, stays readable for as long as the Ethereum blockchain exists.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="app.css?v=23">
+<link rel="stylesheet" href="app.css?v=24">
 </head>
 <body data-venue="about">
 <script src="frame.js"></script>
 <header class="bar">
   <div class="brand">
-    <a class="mark" href="index.html">OnPlate</a>
+    <a class="mark site-home" href="index.html">OnPlate</a>
+    <button type="button" class="mark site-toggle" id="mark" aria-expanded="false" aria-controls="site-menu">OnPlate</button>
+    <div id="site-menu" class="artist-menu" hidden>
+      <a href="index.html" aria-current="page">About</a>
+      <a href="questions.html">Questions</a>
+      <a href="add.html">Add a photograph</a>
+      <a href="view.html">View the photographs</a>
+    </div>
   </div>
   <nav class="hero-nav" aria-label="Studio">
     <a href="add.html">Add a photograph</a>
@@ -114,5 +121,6 @@
     <p class="byline">By: <a href="https://x.com/A_is_A">@A_is_A</a></p>
   </div>
 </footer>
+<script src="site.js"></script>
 </body>
 </html>

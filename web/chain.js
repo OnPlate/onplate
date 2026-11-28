@@ -321,6 +321,57 @@
     return whole.toString() + "." + frac;
   }
 
+  var usdRateHeld = null;
+  var usdWait = null;
+
+  function takeUsd(n) {
+    n = Number(n);
+    if (!(n > 0) || !isFinite(n)) throw new Error("usd");
+    usdRateHeld = n;
+    return n;
+  }
+
+  function ethUsd() {
+    if (usdRateHeld != null) return Promise.resolve(usdRateHeld);
+    if (usdWait) return usdWait;
+    usdWait = fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot").then(function (res) {
+      if (!res.ok) throw new Error("usd");
+      return res.json();
+    }).then(function (msg) {
+      return takeUsd(msg && msg.data && msg.data.amount);
+    }).catch(function () {
+      return fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd").then(function (res) {
+        if (!res.ok) throw new Error("usd");
+        return res.json();
+      }).then(function (msg) {
+        return takeUsd(msg && msg.ethereum && msg.ethereum.usd);
+      });
+    }).finally(function () {
+      usdWait = null;
+    });
+    return usdWait;
+  }
+
+  function usdText(wei, rate) {
+    var centsRate, cents, dollars, rem;
+    wei = BigInt(wei || 0);
+    rate = Number(rate);
+    if (wei <= 0n || !(rate > 0) || !isFinite(rate)) return "";
+    centsRate = BigInt(Math.round(rate * 100));
+    cents = (wei * centsRate + (10n ** 18n) / 2n) / (10n ** 18n);
+    if (cents < 1n) return "less than $0.01";
+    dollars = (cents / 100n).toString();
+    rem = (cents % 100n).toString().padStart(2, "0");
+    return "$" + dollars.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + rem;
+  }
+
+  function moneyText(ethStr, wei, rate) {
+    var usd = usdText(wei, rate);
+    ethStr = String(ethStr || weiToEth(wei));
+    if (!usd) return ethStr + " ETH";
+    return ethStr + " ETH (" + usd + ")";
+  }
+
   function hexQty(n) {
     return "0x" + BigInt(n).toString(16);
   }
@@ -3167,6 +3218,9 @@
     bpsOf: bpsOf,
     ethToWei: ethToWei,
     weiToEth: weiToEth,
+    ethUsd: ethUsd,
+    usdText: usdText,
+    moneyText: moneyText,
     hexQty: hexQty,
     sameAddr: sameAddr,
     chainOf: chainOf,

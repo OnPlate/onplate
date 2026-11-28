@@ -61,6 +61,8 @@
   var favFlashTimer = 0;
   var favFlashToken = 0;
   var quoteGen = 0;
+  var usdRate = null;
+  var lastQuote = null;
   var clearedHash = "";
   var uploadPath = "";
   var viewing = document.body.getAttribute("data-venue") === "view";
@@ -606,6 +608,15 @@
     return whole.toString() + "." + frac;
   }
 
+  function ethMoney(wei, short) {
+    var eth = short ? ethText(wei) : P.weiToEth(wei);
+    return P.moneyText(eth, wei, usdRate);
+  }
+
+  function quoteMoney(ethStr, wei) {
+    return P.moneyText(ethStr, wei, usdRate);
+  }
+
   function paintBatch() {
     var node = document.getElementById("batch-line");
     var batch;
@@ -624,7 +635,7 @@
     }
     P.balanceOf(chain, who).then(function (wei) {
       if (account !== who || P.isOff()) return;
-      statusValue(node, ethText(wei) + " ETH");
+      statusValue(node, ethMoney(wei, true));
     }).catch(function () {
       if (account === who) statusValue(node, "");
     });
@@ -1758,7 +1769,7 @@
     cap.appendChild(fav);
     tile.appendChild(cap);
     if (rowData.meta.parked) state = "Vaulted";
-    else if (rowData.meta.price > 0n) state = "Listed for " + P.weiToEth(rowData.meta.price) + " ETH";
+    else if (rowData.meta.price > 0n) state = "Listed for " + ethMoney(rowData.meta.price);
     if (state) {
       state = el("p", state);
       state.className = "quiet tile-state";
@@ -2032,7 +2043,7 @@
     fact(facts, "Artist royalty", bpsText(rowData.meta.artistBps) + " to " + (rowData.meta.artistRecipient ? displayAddr(rowData.meta.artistRecipient) : "none"));
     if (!rowData.meta.printed) fact(facts, "Storage", "Not fully stored yet");
     if (rowData.meta.price > 0n && !rowData.meta.parked) {
-      fact(facts, "Listing", "Listed for " + P.weiToEth(rowData.meta.price) + " ETH");
+      fact(facts, "Listing", "Listed for " + ethMoney(rowData.meta.price));
     } else if (owned(rowData)) {
       fact(facts, "Listing", "Not for sale. Open Actions to list it.");
     } else {
@@ -2041,7 +2052,7 @@
     if (rowData.meta.parked) fact(facts, "Parked", "Parked at " + displayAddr(rowData.meta.mailbox || ""));
     else fact(facts, "Parked", "Not parked");
     if (rowData.meta.buyer) fact(facts, "Buyer", "Only " + displayAddr(rowData.meta.buyer) + " may buy.");
-    if (claim > 0n) fact(facts, "Withdrawable", P.weiToEth(claim) + " ETH");
+    if (claim > 0n) fact(facts, "Withdrawable", ethMoney(claim));
     fact(facts, "Content hash", rowData.meta.hash || "", "hash");
     details.appendChild(facts);
     menu.appendChild(record);
@@ -2070,7 +2081,7 @@
       actions.appendChild(actionSummary);
       actionBody.className = "action-body";
       if (canBuy) {
-        var buy = button("Buy for " + P.weiToEth(rowData.meta.price) + " ETH", function () { onBuy(rowData); });
+        var buy = button("Buy for " + ethMoney(rowData.meta.price), function () { onBuy(rowData); });
         buy.className = "solid";
         actionBody.appendChild(buy);
       }
@@ -2078,7 +2089,7 @@
         actionBody.appendChild(actSwitch("List " + named, function (panel) {
           var priceLabel, listed, listRow = row();
           if (rowData.meta.price > 0n) {
-            listed = el("span", P.weiToEth(rowData.meta.price) + " ETH");
+            listed = el("span", ethMoney(rowData.meta.price));
             listed.className = "act-frozen";
             listRow.appendChild(listed);
             listRow.appendChild(button("Cancel", function () { onCancel(rowData); }));
@@ -2090,6 +2101,18 @@
               if (ev.key !== "Enter") return;
               ev.preventDefault();
               onList(rowData, price.value);
+            });
+            price.addEventListener("input", function () {
+              var hint = listRow.querySelector(".list-usd");
+              var wei = P.ethToWei(price.value);
+              var usd;
+              if (!hint) {
+                hint = el("p");
+                hint.className = "help list-usd";
+                listRow.appendChild(hint);
+              }
+              usd = wei != null ? P.usdText(wei, usdRate) : "";
+              hint.textContent = usd ? "About " + usd + " at today’s ETH price." : "";
             });
             priceLabel.appendChild(price);
             listRow.appendChild(priceLabel);
@@ -2444,7 +2467,7 @@
     }).then(function (fresh) {
       if (fresh !== rowData.meta.price || fresh <= 0n) throw new Error("price");
       price = fresh;
-      return confirmThen("Buy this photograph for " + P.weiToEth(price) + " ETH?");
+      return confirmThen("Buy this photograph for " + ethMoney(price) + "?");
     }).then(function () {
       return P.listedPair(chain, rowData.plate);
     }).then(function (again) {
@@ -2504,7 +2527,7 @@
       return;
     }
     say("");
-    confirmThen("List this photograph for " + P.weiToEth(wei) + " ETH?").then(function () {
+    confirmThen("List this photograph for " + ethMoney(wei) + "?").then(function () {
       return gate(rowData);
     }).then(function (pin) {
       return P.send(chain, {
@@ -2606,6 +2629,7 @@
     clearedHash = "";
     linkNote = "";
     quoteAbout = "";
+    lastQuote = null;
     planShape = null;
     commandOpen = false;
     uploadPath = "";
@@ -3030,7 +3054,7 @@
     } catch (e) {
       return "";
     }
-    return quote && quote.about ? quote.about + " ETH" : "";
+    return quote && quote.about ? quoteMoney(quote.about, quote.costWei) : "";
   }
 
   function packTitle(key) {
@@ -3483,7 +3507,7 @@
     var lead, note, tail, strong, keep;
     lead = document.createElement("p");
     strong = document.createElement("strong");
-    strong.textContent = "About " + quote.about + " ETH is needed to store the photo pieces.";
+    strong.textContent = "About " + quoteMoney(quote.about, quote.costWei) + " is needed to store the photo pieces.";
     lead.appendChild(strong);
     note = document.createElement("p");
     note.textContent = "That figure is storage only. Registration is a separate cost.";
@@ -3491,7 +3515,7 @@
     tail.id = "quote-keep";
     tail.appendChild(document.createTextNode("Recommend keeping at least "));
     keep = document.createElement("strong");
-    keep.textContent = quote.keep + " ETH";
+    keep.textContent = quoteMoney(quote.keep, quote.keepWei);
     tail.appendChild(keep);
     tail.appendChild(document.createTextNode(" in the wallet, in case gas rises while storing and registering."));
     node.replaceChildren(lead, note, tail);
@@ -3499,7 +3523,7 @@
   }
 
   function fundsSentence(have, quote) {
-    var line = "This wallet has " + P.weiToEth(have) + " ETH. Storing needs about " + quote.about + " ETH, and the page recommends keeping at least " + quote.keep + " ETH.";
+    var line = "This wallet has " + ethMoney(have) + ". Storing needs about " + quoteMoney(quote.about, quote.costWei) + ", and the page recommends keeping at least " + quoteMoney(quote.keep, quote.keepWei) + ".";
     if (chain === "sepolia") line += " That has to be Sepolia ETH, not mainnet ETH.";
     return line;
   }
@@ -3513,9 +3537,9 @@
       if (line) line.remove();
       return;
     }
-    text = "This wallet holds " + P.weiToEth(haveWei) + " ETH.";
+    text = "This wallet holds " + ethMoney(haveWei) + ".";
     if (quote && quote.keepWei && haveWei < quote.keepWei) {
-      text += " That is short of the " + quote.keep + " ETH the page recommends keeping.";
+      text += " That is short of the " + quoteMoney(quote.keep, quote.keepWei) + " the page recommends keeping.";
     }
     if (chain === "sepolia") text += " Use Sepolia ETH, not mainnet ETH.";
     if (!line || line.parentNode !== node) {
@@ -3552,6 +3576,7 @@
     if (gen !== quoteGen || !node) return;
     if (price == null) {
       quoteAbout = "";
+      lastQuote = null;
       node.replaceChildren();
       node.textContent = "The current gas price could not be read, so there is no cost estimate.";
       paintQuoteCount();
@@ -3559,6 +3584,7 @@
       return;
     }
     quote = P.storeQuote(count, price, chain);
+    lastQuote = quote;
     quoteAbout = quote.about;
     // quote.keep is twice the store estimate. The last sentence uses that reserve for a gas rise while storing and registering. It is not a separate register quote.
     paintGasQuote(node, quote);
@@ -3649,6 +3675,7 @@
     clearedHash = "";
     linkNote = "";
     quoteAbout = "";
+    lastQuote = null;
     planShape = null;
     commandOpen = false;
     uploadPath = "";
@@ -5150,4 +5177,17 @@
   paintArtists();
   watchWallet();
   refresh();
+  P.ethUsd().then(function (n) {
+    var orig, pack, node;
+    usdRate = n;
+    if (lastQuote) {
+      node = document.getElementById("gas-quote");
+      if (node) paintGasQuote(node, lastQuote);
+    }
+    orig = document.getElementById("file");
+    pack = document.getElementById("pack");
+    if (orig && orig.files && orig.files[0] && pack && !pack.hidden) paintPackCaps(orig.files[0]);
+    showFiltered();
+    paintBalance();
+  }).catch(function () {});
 })();
