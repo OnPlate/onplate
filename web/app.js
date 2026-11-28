@@ -1234,6 +1234,10 @@
     about.href = "index.html" + (window.location.search || "");
     about.textContent = "About";
     menu.appendChild(about);
+    var questions = document.createElement("a");
+    questions.href = "questions.html";
+    questions.textContent = "Questions";
+    menu.appendChild(questions);
     // The add page opens the full gallery. Chain and factory stay. Artist and favorites do not.
     add.href = viewing ? addPage + (window.location.search || "") : viewHref("");
     add.textContent = viewing ? "Add a photograph" : "View the photographs";
