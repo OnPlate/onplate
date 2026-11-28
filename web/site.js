@@ -29,15 +29,34 @@
   }
 
   if (!P || !quote) return;
+
+  function moneyOf(chain, price, rate) {
+    var q;
+    if (!price) return "";
+    try {
+      q = P.storeQuote(P.OPEN_MAX, price, chain);
+      return P.moneyText(q.about, q.costWei, rate);
+    } catch (e) {
+      return "";
+    }
+  }
+
   Promise.all([
-    P.chainGasPrice(P.chainOf()),
+    P.chainGasPrice("sepolia").catch(function () { return 0n; }),
+    P.chainGasPrice("mainnet").catch(function () { return 0n; }),
     P.ethUsd().catch(function () { return 0; })
-  ]).then(function (pair) {
-    var q = P.storeQuote(P.OPEN_MAX, pair[0], P.chainOf());
-    var money = P.moneyText(q.about, q.costWei, pair[1]);
-    var line = "Today, storing an open-size photograph is about " + money + ". That figure is storage only; registration is a separate cost.";
-    if (P.chainOf() === "sepolia") line += " On Sepolia that ETH is test ETH.";
-    quote.textContent = line;
+  ]).then(function (triple) {
+    var rate = triple[2];
+    var test = moneyOf("sepolia", triple[0], rate);
+    var main = moneyOf("mainnet", triple[1], rate);
+    var parts = [];
+    if (test) parts.push("On the Sepolia test network, storing an open-size photograph is about " + test + ". That ETH is test ETH.");
+    if (main) parts.push("On Ethereum mainnet, the same photograph is about " + main + " at today’s rates. That is the price someone can expect to pay through March.");
+    if (!parts.length) {
+      quote.textContent = "The studio shows today’s amount, in ETH and USD, before you send.";
+      return;
+    }
+    quote.textContent = parts.join(" ") + " Those figures are storage only; registration is a separate cost.";
   }).catch(function () {
     quote.textContent = "The studio shows today’s amount, in ETH and USD, before you send.";
   });

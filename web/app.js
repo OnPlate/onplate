@@ -125,12 +125,45 @@
   }
 
   function drop(url) {
-    if (url) URL.revokeObjectURL(url);
+    if (url && String(url).indexOf("blob:") === 0) URL.revokeObjectURL(url);
   }
 
   // A redraw keeps a photograph's object URL. Revoking it while the old image is
   // still on screen makes the browser paint the alt text in the photograph's place.
   var keptUrls = null;
+
+  function ownedBytes(bytes) {
+    var out = new Uint8Array(bytes.length);
+    out.set(bytes);
+    return out;
+  }
+
+  function bytesDataUrl(bytes, type) {
+    var copy, bin, i;
+    if (!bytes || !type || bytes.length > 400000) return "";
+    copy = ownedBytes(bytes);
+    bin = "";
+    for (i = 0; i < copy.length; i++) bin += String.fromCharCode(copy[i]);
+    try { return "data:" + type + ";base64," + btoa(bin); }
+    catch (e) { return ""; }
+  }
+
+  function bytesBlobUrl(bytes, type) {
+    return URL.createObjectURL(new Blob([ownedBytes(bytes)], { type: type }));
+  }
+
+  function armImageFallback(img, bytes, type, reuseKey) {
+    var fallback;
+    if (!img || String(img.src || "").indexOf("data:") === 0) return;
+    fallback = bytesDataUrl(bytes, type);
+    if (!fallback) return;
+    img.addEventListener("error", function onErr() {
+      img.removeEventListener("error", onErr);
+      if (img.src === fallback) return;
+      img.src = fallback;
+      if (reuseKey) urls[reuseKey] = fallback;
+    });
+  }
 
   function saveCopy(bytes, type, name) {
     var blob, link, file;
@@ -154,8 +187,7 @@
     img.alt = alt || "";
     img.className = className || "";
     url = reuseKey && keptUrls ? keptUrls[reuseKey] : "";
-    if (!url) url = URL.createObjectURL(new Blob([bytes], { type: type }));
-    img.src = url;
+    if (!url) url = bytesBlobUrl(bytes, type);
     if (reuseKey && String(reuseKey).indexOf(":thumb") < 0) {
       img.setAttribute("data-full", String(reuseKey).replace(/:tile$/i, "").toLowerCase());
     }
@@ -166,6 +198,8 @@
       });
     }
     parent.appendChild(img);
+    img.src = url;
+    armImageFallback(img, bytes, type, reuseKey);
     return url;
   }
 
@@ -1978,7 +2012,8 @@
     if (rowData.image) {
       urls[rowData.plate] = showBytes(box, rowData.image, P.sniff(rowData.image), rowData.meta.name || "Photograph", "", rowData.plate);
     } else if (rowData.meta.printed && rowData.hashOk !== false && rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
-      urls[rowData.plate] = showBytes(box, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "", rowData.plate);
+      urls[rowData.plate] = showBytes(box, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "stand-in", rowData.plate);
+      box.appendChild(el("p", "Loading photograph…")).className = "quiet photo-wait";
     } else if (!rowData.meta.printed) {
       if (rowData.meta.thumbnail && P.sniff(rowData.meta.thumbnail) === "image/png") {
         urls[rowData.plate] = showBytes(box, rowData.meta.thumbnail, "image/png", rowData.meta.name || "Photograph", "", rowData.plate);
@@ -2192,18 +2227,24 @@
   function applyImage(rowData, bytes, cached) {
     var type = P.sniff(bytes);
     var plate = rowData && rowData.plate;
-    var url, nodes, i, key;
+    var url, nodes, i, key, wait;
     if (!type || !plate) return;
     rowData.image = bytes;
     rowData.hashOk = true;
     rowData.cached = !!cached;
-    url = URL.createObjectURL(new Blob([bytes], { type: type }));
+    url = bytesBlobUrl(bytes, type);
     urls[plate] = url;
     urls[plate + ":tile"] = url;
     if (!photos) return;
     key = String(plate).toLowerCase();
     nodes = photos.querySelectorAll('img[data-full="' + key + '"]');
-    for (i = 0; i < nodes.length; i++) nodes[i].src = url;
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].classList.remove("stand-in");
+      nodes[i].src = url;
+      armImageFallback(nodes[i], bytes, type, plate);
+      wait = nodes[i].parentNode && nodes[i].parentNode.querySelector(".photo-wait");
+      if (wait) wait.remove();
+    }
   }
 
   function hydrateImage(rowData, mineTicket) {
@@ -2226,8 +2267,14 @@
       if (!got || !got.bytes || mineTicket !== ticket) return;
       applyImage(rowData, got.bytes, got.cached);
     }).catch(function () {
+      var img, wait, key;
       if (mineTicket !== ticket) return;
       rowData.hashOk = false;
+      if (!photos || !rowData.plate) return;
+      key = String(rowData.plate).toLowerCase();
+      img = photos.querySelector('img[data-full="' + key + '"]');
+      wait = img && img.parentNode && img.parentNode.querySelector(".photo-wait");
+      if (wait) wait.textContent = "The photograph could not be read yet. The small picture is the on-chain thumbnail.";
     });
   }
 

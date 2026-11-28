@@ -384,7 +384,15 @@ html.pack-open body {
 #photos { background: #f3f0e6; }
 section.plate { margin: 0 0 4.5rem; }
 section.plate > img { display: block; width: 100%; height: auto; margin: 0 0 1.4rem; }
+section.plate > img.stand-in {
+  width: 4.5rem;
+  max-width: 4.5rem;
+  height: auto;
+  margin: 0 0 0.55rem;
+}
+.photo-wait { margin: 0 0 1rem; }
 section.plate > img:has(+ .piece-row) { margin-bottom: 0; }
+section.plate > img.stand-in:has(+ .photo-wait) { margin-bottom: 0.35rem; }
 .piece-row {
   display: flex;
   align-items: flex-start;
