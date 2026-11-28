@@ -50,8 +50,8 @@
     var test = moneyOf("sepolia", triple[0], rate);
     var main = moneyOf("mainnet", triple[1], rate);
     var parts = [];
-    if (test) parts.push("On the Sepolia test network, storing an open-size photograph is about " + test + ". That ETH is test ETH.");
-    if (main) parts.push("On Ethereum mainnet, the same photograph is about " + main + " at today’s rates. That is the price someone can expect to pay through March.");
+    if (main) parts.push("On Ethereum mainnet, storing an open-size photograph is about " + main + " at today’s rates. That is the price someone can expect to pay through March 2027.");
+    if (test) parts.push("On the Sepolia test network, the same photograph is about " + test + ". That ETH is test ETH, and the number is higher because the test network already uses the new charge.");
     if (!parts.length) {
       quote.textContent = "The studio shows today’s amount, in ETH and USD, before you send.";
       return;

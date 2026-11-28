@@ -35,8 +35,7 @@
       "https://gateway.tenderly.co/public/sepolia",
       "https://sepolia.drpc.org",
       "https://rpc.sepolia.ethpandaops.io",
-      "https://1rpc.io/sepolia",
-      "https://ethereum-sepolia.publicnode.com"
+      "https://1rpc.io/sepolia"
     ],
     anvil: ["http://127.0.0.1:8545"]
   };
@@ -382,22 +381,30 @@
     return !!left && left === right;
   }
 
+  function loopbackHost() {
+    try {
+      var host = root.location.hostname;
+      return host === "localhost" || host === "127.0.0.1";
+    } catch (e) {
+      return false;
+    }
+  }
+
   function chainOf() {
     try {
       var q = new URLSearchParams(root.location.search).get("chain");
-      if (q === "mainnet" || q === "sepolia" || q === "anvil") return q;
+      if (q === "mainnet" || q === "sepolia") return q;
+      if (q === "anvil" && loopbackHost()) return "anvil";
     } catch (e) {}
     if (FACTORIES.mainnet) return "mainnet";
     return "sepolia";
   }
 
   function factoryOf(chain) {
-    var host, raw;
+    var raw;
     if (chain === "mainnet" || chain === "sepolia") return FACTORIES[chain];
-    if (chain !== "anvil") return "";
+    if (chain !== "anvil" || !loopbackHost()) return "";
     try {
-      host = root.location.hostname;
-      if (host !== "localhost" && host !== "127.0.0.1") return "";
       raw = new URLSearchParams(root.location.search).get("factory") || "";
     } catch (e) {
       return "";
@@ -406,12 +413,11 @@
   }
 
   function batchOf(chain) {
-    var host, raw, fallback;
+    var raw, fallback;
     fallback = BATCHES[chain] || "";
     if (chain !== "anvil") return parseAddr(fallback) || "";
+    if (!loopbackHost()) return "";
     try {
-      host = root.location.hostname;
-      if (host !== "localhost" && host !== "127.0.0.1") return "";
       raw = new URLSearchParams(root.location.search).get("batch") || "";
     } catch (e) {
       return parseAddr(fallback) || "";
@@ -1243,6 +1249,19 @@
     return kind === "create" || kind === "openBook" || kind === "addChunks" || kind === "sealBook" || kind === "addPhoto" || kind === "linkPhoto";
   }
 
+  function sendAllowed() {
+    var venue, path;
+    try {
+      venue = root.document && root.document.body && root.document.body.getAttribute("data-venue");
+      path = String((root.location && root.location.pathname) || "");
+      if (venue === "about" || venue === "questions") return false;
+      if (/(?:^|\/)questions\.html$/i.test(path)) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function send(chain, tx) {
     var eth = root.ethereum;
     var data = tx && tx.data;
@@ -1251,6 +1270,7 @@
     var kind = tx && tx.kind;
     var local = !!(tx && tx.local);
     if (isOff()) return Promise.reject(new Error("off"));
+    if (!sendAllowed()) return Promise.reject(new Error("venue"));
     if (!eth || !eth.request) return Promise.reject(new Error("wallet"));
     if (!CHAIN_HEX[chain]) return Promise.reject(new Error("chain"));
     if (local) {
@@ -1594,6 +1614,7 @@
     if (message === "cancel") return "";
     if (message === "off") return "Disconnected.";
     if (message === "wallet") return "Connect a wallet that can send on this chain.";
+    if (message === "venue") return "This page does not send.";
     if (message === "account") return "Connect the account that prepared this photograph, then store again.";
     if (message === "chain") return "The wallet is not on this chain.";
     if (isUnauthorized(err) || /not been authorized|\b4100\b/i.test(detail)) {
@@ -1656,31 +1677,100 @@
     });
   }
 
-  function planGet(hash) {
-    var key = String(hash || "").toLowerCase();
-    if (planStore) return Promise.resolve(planStore.get(key));
+  function planRecordKey(plan) {
+    var hash = String((plan && plan.hash) || "").toLowerCase();
+    var wallet = String((plan && plan.wallet) || "").toLowerCase();
+    var chain = String((plan && plan.chain) || "");
+    if (!hash) return "";
+    if (chain && wallet) return chain + ":" + wallet + ":" + hash;
+    return hash;
+  }
+
+  function planGet(hash, wallet, chainName) {
+    var hashKey = String(hash || "").toLowerCase();
+    var wantWallet = wallet || "";
+    var wantChain = chainName || "";
+    var composite = (wantChain && wantWallet && hashKey)
+      ? String(wantChain) + ":" + String(wantWallet).toLowerCase() + ":" + hashKey
+      : "";
+    function pick(row) {
+      if (!row) return null;
+      if (wantWallet && row.wallet && !sameAddr(row.wallet, wantWallet)) return null;
+      if (wantChain && row.chain && row.chain !== wantChain) return null;
+      return row;
+    }
+    if (planStore) {
+      return Promise.resolve(pick(planStore.get(composite || hashKey) || (composite ? planStore.get(hashKey) : null)));
+    }
     return planTx("readonly", function (store, set) {
-      var q = store.get(key);
-      q.onsuccess = function () { set(q.result || null); };
+      function finish(row) { set(pick(row)); }
+      if (!composite) {
+        var q = store.get(hashKey);
+        q.onsuccess = function () { finish(q.result || null); };
+        return;
+      }
+      var first = store.get(composite);
+      first.onsuccess = function () {
+        if (first.result) { finish(first.result); return; }
+        var second = store.get(hashKey);
+        second.onsuccess = function () { finish(second.result || null); };
+      };
     });
   }
 
   function planSave(plan) {
     if (!plan || !plan.hash) return Promise.reject(new Error("plan"));
     plan.hash = String(plan.hash).toLowerCase();
-    if (planStore) return Promise.resolve(planStore.put(plan)).then(function () { return plan; });
+    var key = planRecordKey(plan);
+    if (!key) return Promise.reject(new Error("plan"));
+    if (planStore) {
+      return Promise.resolve(planStore.get(plan.hash)).then(function (existing) {
+        if (existing && existing.wallet && plan.wallet && !sameAddr(existing.wallet, plan.wallet)) {
+          return Promise.reject(new Error("plan"));
+        }
+        return Promise.resolve(planStore.put(plan)).then(function () { return plan; });
+      });
+    }
     return planTx("readwrite", function (store, set) {
-      var q = store.put(plan, plan.hash);
-      q.onsuccess = function () { set(plan); };
+      var q = store.put(plan, key);
+      q.onsuccess = function () {
+        if (key === plan.hash) { set(plan); return; }
+        var old = store.get(plan.hash);
+        old.onsuccess = function () {
+          var row = old.result;
+          if (row && row.wallet && plan.wallet && !sameAddr(row.wallet, plan.wallet)) {
+            set(plan);
+            return;
+          }
+          var q2 = store.put(plan, plan.hash);
+          q2.onsuccess = function () { set(plan); };
+        };
+      };
     });
   }
 
-  function planDelete(hash) {
-    var key = String(hash || "").toLowerCase();
-    if (planStore) return Promise.resolve(planStore.del(key));
+  function planDelete(hash, wallet, chainName) {
+    var hashKey = String(hash || "").toLowerCase();
+    var composite = (chainName && wallet && hashKey)
+      ? String(chainName) + ":" + String(wallet).toLowerCase() + ":" + hashKey
+      : "";
+    if (planStore) return Promise.resolve(planStore.del(hashKey));
     return planTx("readwrite", function (store, set) {
-      var q = store.delete(key);
-      q.onsuccess = function () { set(true); };
+      function wipeHash() {
+        var q = store.get(hashKey);
+        q.onsuccess = function () {
+          var row = q.result;
+          if (row && wallet && row.wallet && !sameAddr(row.wallet, wallet)) {
+            set(true);
+            return;
+          }
+          var d = store.delete(hashKey);
+          d.onsuccess = function () { set(true); };
+        };
+      }
+      if (!composite) { wipeHash(); return; }
+      var d1 = store.delete(composite);
+      d1.onsuccess = wipeHash;
     });
   }
 
@@ -3156,8 +3246,13 @@
 
   function cacheGet(chain, plate) {
     return idbGet(imageKey(chain, plate)).then(function (row) {
+      var bytes, hash;
       if (!row || !row.bytes) return null;
-      row.bytes = new Uint8Array(row.bytes);
+      bytes = new Uint8Array(row.bytes);
+      hash = contentHash(bytes);
+      if (!hash || !row.hash || hash.toLowerCase() !== String(row.hash).toLowerCase()) return null;
+      row.bytes = bytes;
+      row.hash = hash;
       return row;
     });
   }

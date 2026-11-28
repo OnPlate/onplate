@@ -58,10 +58,14 @@
     var locals = [];
     var centrals = [];
     var offset = 0;
-    var i, name, data, crc, local, central, end;
+    var i, name, data, crc, local, central, end, key, seen;
     if (!files || !files.length) throw new Error("files");
+    seen = {};
     for (i = 0; i < files.length; i++) {
       name = nameBytes(files[i].name);
+      key = String(files[i].name).toLowerCase();
+      if (seen[key]) throw new Error("name");
+      seen[key] = 1;
       data = files[i].bytes;
       if (!(data instanceof Uint8Array)) throw new Error("bytes");
       crc = crc32(data);

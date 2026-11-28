@@ -2070,7 +2070,7 @@
     if (origin) factAddr(facts, "Artist wallet", origin);
     if (uploader && origin && !P.sameAddr(uploader, origin)) {
       factAddr(facts, "Registered by", uploader);
-      warn = el("dd", "This keystore stored the photograph for the artist wallet.");
+      warn = el("dd", "A separate account paid the network fee to store this photograph. The artist wallet holds it.");
       warn.className = "wide";
       facts.appendChild(warn);
     }
@@ -3474,7 +3474,7 @@
   }
 
   function clearAbandoned(hash) {
-    P.planDelete(hash).then(function () {
+    P.planDelete(hash, account, chain).then(function () {
       if (job && String(job.hash).toLowerCase() === String(hash).toLowerCase()) resetJob();
       return openPlans();
     }).then(function () {
@@ -3756,6 +3756,7 @@
     uploadError("");
     registerError("");
     fileError("");
+    if (!file) { prepareNote("Choose a photograph."); return; }
     if (!mine() || !factory) { prepareNote("Connect an account that can add a photograph."); return; }
     if (!name) { prepareNote("The artwork name uses plain text, 1 to 48 characters."); return; }
     if (description == null) { prepareNote("The description uses plain text, up to 240 characters."); return; }
@@ -3766,7 +3767,6 @@
     }
     if (artistBps > 0 && (!artist || zero(artist))) { prepareNote("Enter an Ethereum address (0x…) for the royalty recipient."); return; }
     if (artistBps === 0 && !artist) artist = "0x0000000000000000000000000000000000000000";
-    if (!file) { prepareNote("Choose a photograph."); return; }
     if (sizeGate) { prepareNote(sizeGate); return; }
     if (!chainChunks) { prepareNote(P.QUIET); return; }
     setPreparing(true);
@@ -3782,7 +3782,7 @@
         if (chunks.length > P.PIECE_CEILING) throw new Error("pieces");
         if (!pieceCapOk(ok, chunks.length)) throw new Error("open");
         keepArtistName(artist, artistName);
-        return P.planGet(hash).then(function (existing) {
+        return P.planGet(hash, account, chain).then(function (existing) {
           if (existing && existing.chain === chain && P.sameAddr(existing.wallet, account) && P.sameAddr(existing.factory, factory)) {
             return P.reconcilePlan(chain, existing).then(function () {
               var mined, i;
@@ -3900,9 +3900,12 @@
 
   function safeFileName(name) {
     var base = String(name || "").split(/[/\\]/).pop();
+    var lower;
     if (!base || base === "." || base === "..") return "";
     if (base.length > 180) return "";
     if (/[\u0000-\u001f\u007f]/.test(base)) return "";
+    lower = base.toLowerCase();
+    if (lower === "prompt.txt" || lower === "upload-thumb.png") return "";
     return base;
   }
 
@@ -4000,7 +4003,7 @@
       "10. Before any broadcast, SENDER needs the recommended amount of ETH shown on the page. The upload spends only ETH that is already there. Do not ask me for a seed phrase.",
       "11. If the script says broadcast/upload-progress.json is for a different photograph, move that file aside and run again. Do not edit the JSON.",
       "12. Run only one upload at a time. Do not store from the page while this script is sending, and do not start a second send in another terminal.",
-      "13. If the script prints that the chain stored this group, or to run the same command again, or that the deployed code did not match this piece, or that a group stored fewer pieces, this is still the same photograph. Run the same command again with --broadcast. Do not change IMAGE, CONFIRM, OWNER, SENDER, or ARTIST. Do not store from the page. The next run continues from the pieces already on the chain. That line is not a failed photograph.",
+      "13. If the script prints that the chain stored this group, or to run the same command again, or that the deployed code did not match this piece, or that a group stored fewer pieces, this is still the same photograph. Run the same command again with --broadcast. Do not change IMAGE, CONFIRM, OWNER, SENDER, ARTIST, FACTORY, BATCH, or the --rpc-url. Do not store from the page. The next run continues from the pieces already on the chain. That line is not a failed photograph.",
       "",
       "If this same account already stored some pieces, the script continues from the first missing piece. A progress entry that was never mined is stored again. A different account is refused, because it would store a second copy."
     ];
@@ -4774,7 +4777,7 @@
 
   function resume(hash) {
     if (!mine()) { prepareNote("Connect an account that can add a photograph."); return; }
-    P.planGet(hash).then(function (plan) {
+    P.planGet(hash, account, chain).then(function (plan) {
       if (!plan) throw new Error("plan");
       return P.reconcilePlan(chain, plan).then(function () { return plan; });
     }).then(function (plan) {

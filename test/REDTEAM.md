@@ -92,7 +92,7 @@ After a sale the uploader's `list`, `cancel`, and `setAllowedBuyer` revert `NotT
 
 The title holder cannot `transferFrom` the parked token back. `test_titleCannotPull`. The zero address, the photograph, and the title holder are rejected as vaults. `test_badVaultRejected`. A vault that is an ordinary unused address holds the token until that address calls `release`. The title holder cannot clear the name, release, or transfer in the meantime. `test_typoParkIsPermanentUntilThatVaultReturns`. The vault cannot burn. Burn reverts `Hook` while parked. `test_parkedPlateCannotBeBurned`.
 
-`release` leaves the name. A later sale, while the title holder is holding the token, clears the name. The buyer does not inherit the vault. `test_saleClearsANamedVault`. Parking one photograph does not park another. The vault cannot `release` the second. `test_twoPhotosDoNotShareAVault`.
+A later sale, while the title holder is holding the token, also clears the name. The buyer does not inherit the vault. `test_saleClearsANamedVault`. Parking one photograph does not park another. The vault cannot `release` the second. `test_twoPhotosDoNotShareAVault`.
 
 ## Nomination
 

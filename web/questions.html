@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https: http://127.0.0.1:8545 http://localhost:8545">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https: http://127.0.0.1:8545 http://localhost:8545">
 <title>Questions — OnPlate</title>
 <meta name="description" content="What OnPlate costs, why the open size is small, how parking works, and what remains if this page is gone.">
 <meta property="og:title" content="Questions — OnPlate">
@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="app.css?v=25">
 </head>
 <body data-venue="questions">
-<script src="frame.js"></script>
+<script src="frame.js?v=1"></script>
 <header class="bar">
   <div class="brand">
     <a class="mark site-home" href="index.html">OnPlate</a>
@@ -40,7 +40,7 @@
 
   <h2>What does it cost?</h2>
   <p>I do not charge a price for storing the art. Ethereum does. Writing the file into the public record takes network fees, and those fees move with how busy the network is and how large the photograph is. <span id="open-quote">Today’s fees for an open-size photograph are being read from the network…</span></p>
-  <p>Ethereum is changing how it charges to write something lasting. After that change, storing a photograph will cost more, because the network will ask more to keep new data in the record. The test network already uses the new charge. Mainnet still uses the older, cheaper one through March. I will not pick a day for the switch. Through March, plan on the mainnet figure. After that, expect the higher bill. The studio shows the live figure again before you send, because it moves. A larger photograph costs more, because more has to be written. Looking at the photographs costs nothing.</p>
+  <p>Ethereum is changing how it charges to write something lasting. After that change, storing a photograph will cost more, because the network will ask more to keep new data in the record. The test network already uses the new charge. Mainnet still uses the older, cheaper one through March 2027. I will not pick a day for the switch. Through March 2027, plan on the mainnet figure. After that, expect the higher bill. The studio shows the live figure again before you send, because it moves. A larger photograph costs more, because more has to be written. Looking at the photographs costs nothing.</p>
 
   <h2>Why is the open size so small?</h2>
   <p>Anyone may upload photos up to ~74 KB. That is a small JPEG on purpose: the photograph’s data fits in one transaction, at a cost that stays in reach. A larger file takes more writes, more fees, and more steps. The pictures on the About page are packed to that size so you can see the resultant quality with your eyes, not as a number (e.g. 74 KB). Larger files are welcome, but the permission to upload them needs to be requested.</p>
@@ -68,8 +68,8 @@
     <p class="byline">By: <a href="https://x.com/A_is_A">@A_is_A</a></p>
   </div>
 </footer>
-<script src="keccak.js"></script>
-<script src="chain.js?v=19"></script>
-<script src="site.js?v=2"></script>
+<script src="keccak.js?v=1"></script>
+<script src="chain.js?v=20"></script>
+<script src="site.js?v=3"></script>
 </body>
 </html>

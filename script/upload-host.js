@@ -602,6 +602,11 @@ async function tryCode(job, addr) {
   }
 }
 
+async function agreedCode(job, addr) {
+  try { return await getCodeReads(job, addr); }
+  catch (e) { return tryCode(job, addr); }
+}
+
 // The sending RPC already has the receipt. Other public nodes can still
 // return empty code for a few hundred milliseconds. Two of those empties
 // must not agree and fail the payload check.
@@ -791,6 +796,47 @@ function loadProgress(job) {
   }
 }
 
+async function bookMatches(job, book) {
+  if (!book) return 0;
+  const code = await waitCode(job, book, isLiveCode);
+  if (!isLiveCode(code)) return 0;
+  let artist, expected, n, i, chunk, got, want;
+  try {
+    artist = OnPlate.addrOf(await callReads(job, book, OnPlate.sel("artist")));
+    expected = Number(OnPlate.u256(await callReads(job, book, OnPlate.sel("expected"))));
+    n = Number(OnPlate.u256(await callReads(job, book, OnPlate.sel("chunkCount"))));
+  } catch (e) {
+    return 0;
+  }
+  if (!OnPlate.sameAddr(artist, job.home) || expected !== job.pieces) return 0;
+  if (!n) return -1;
+  if (n > job.pieces) return 0;
+  for (i = 0; i < n; i++) {
+    chunk = OnPlate.addrOf(await callReads(job, book, OnPlate.sel("chunkAt") + OnPlate.pad256(i)));
+    if (!chunk || isZero(chunk)) return 0;
+    got = payloadHash(await readChunkCode(job, chunk));
+    want = keccakHex(sliceAt(job.image, i));
+    if (got !== want) return 0;
+    if (job.chunks[i] && !OnPlate.sameAddr(job.chunks[i], chunk)) return 0;
+  }
+  return n;
+}
+
+async function plateMatches(job, plate) {
+  if (!plate) return false;
+  const code = await waitCode(job, plate, isLiveCode);
+  if (!isLiveCode(code)) return false;
+  let photo, hash;
+  try {
+    photo = OnPlate.u256(await callReads(job, job.factory, OnPlate.sel("isPhoto") + OnPlate.padAddr(plate))) !== 0n;
+    hash = await callReads(job, plate, OnPlate.sel("contentHash"));
+  } catch (e) {
+    return false;
+  }
+  if (!photo) return false;
+  return sameHash(hash, job.hash);
+}
+
 async function dropMissing(job) {
   let skipped = false;
   for (let i = 0; i < job.chunks.length; i++) {
@@ -814,12 +860,18 @@ async function dropMissing(job) {
     if (!isLiveCode(code)) {
       console.log("The progress file names a book that was never mined. A new book will be opened.");
       job.book = "";
+    } else if (await bookMatches(job, job.book) === 0) {
+      console.error(job.book);
+      die("The progress file names a book that does not match this photograph. Move that file aside. Nothing was sent.");
     }
   }
   if (job.plate) {
     const code = await waitCode(job, job.plate, isLiveCode);
     if (!isLiveCode(code)) {
       console.log("The progress file names a plate that was never mined. It will be registered again.");
+      job.plate = "";
+    } else if (!(await plateMatches(job, job.plate))) {
+      console.log("The progress file names a plate that is not this photograph. It will be registered again.");
       job.plate = "";
     }
   }
@@ -840,7 +892,7 @@ async function adopt(job) {
     }
     taken[i] = true;
   }
-  const logs = await OnPlate.getLogsOn(job.rpc, chainName(job.chainId), job.batch, [pieceTopic()]);
+  const logs = await OnPlate.getLogs(chainName(job.chainId), job.batch, [pieceTopic()]);
   let foreign = "";
   for (let n = 0; n < logs.length; n++) {
     const log = logs[n];
@@ -848,7 +900,7 @@ async function adopt(job) {
     const payer = OnPlate.addrOf(log.topics[1]);
     const chunk = OnPlate.addrOf(log.topics[3]);
     if (!payer || !chunk) continue;
-    const got = payloadHash(await tryCode(job, chunk));
+    const got = payloadHash(await agreedCode(job, chunk));
     if (OnPlate.sameAddr(payer, job.sender)) {
       const who = await pieceMaker(job, chunk);
       if (!who || isZero(who) || !OnPlate.sameAddr(who, job.sender)) continue;
@@ -866,7 +918,7 @@ async function adopt(job) {
     const payer = OnPlate.addrOf(log.topics[1]);
     if (!payer || OnPlate.sameAddr(payer, job.sender)) continue;
     const chunk = OnPlate.addrOf(log.topics[3]);
-    const got = payloadHash(await tryCode(job, chunk));
+    const got = payloadHash(await agreedCode(job, chunk));
     for (let i = 0; i < want.length; i++) {
       if (!taken[i] && want[i] === got) {
         foreign = payer;
@@ -1052,10 +1104,24 @@ async function loadJob(opts) {
   };
 }
 
+async function sendGasPrice(job) {
+  const FLOOR = 1500000000n;
+  const CEIL = 200000000000n;
+  let quoted = 0n;
+  try {
+    quoted = OnPlate.u256(await agreeRpc(job.reads, job.readNeed, "eth_gasPrice", []));
+  } catch (e) {
+    quoted = OnPlate.u256(await rpc(job.rpc, "eth_gasPrice", []));
+  }
+  if (quoted < FLOOR) quoted = FLOOR;
+  if (quoted > CEIL) die("The gas price from the nodes is too high. Nothing was sent.");
+  return quoted;
+}
+
 async function sendTx(job, priv, to, data, gas) {
   const nonceHex = await rpc(job.rpc, "eth_getTransactionCount", [job.sender, "latest"]);
   const nonce = Number(OnPlate.u256(nonceHex));
-  const gasPrice = OnPlate.u256(await rpc(job.rpc, "eth_gasPrice", []));
+  const gasPrice = await sendGasPrice(job);
   const raw = signLegacy(priv, {
     nonce: nonce,
     gasPrice: gasPrice,
@@ -1226,15 +1292,13 @@ async function sendAll(job, opts) {
   console.log("pieces already on-chain", countStored(job.chunks));
   if (job.book) console.log("book", job.book);
   if (job.plate) {
-    const code = await waitCode(job, job.plate, isLiveCode);
-    if (!isLiveCode(code)) {
-      console.log("The progress file names a plate that was never mined. It will be registered again.");
-      job.plate = "";
-    } else {
+    if (await plateMatches(job, job.plate)) {
       console.log("This photograph is already registered.");
       console.log(job.plate);
       return;
     }
+    console.log("The progress file names a plate that is not this photograph. It will be registered again.");
+    job.plate = "";
   }
   {
     const live = await livePlate(job);

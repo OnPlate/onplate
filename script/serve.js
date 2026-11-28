@@ -29,10 +29,24 @@ function headers() {
 const extra = headers();
 http.createServer(function (req, res) {
   const url = new URL(req.url, "http://127.0.0.1");
-  let file = decodeURIComponent(url.pathname);
-  if (file === "/") file = "/index.html";
-  const full = path.join(root, path.normalize(file));
-  if (!full.startsWith(root) || !fs.existsSync(full) || !fs.statSync(full).isFile()) {
+  let file;
+  let rel;
+  let full;
+  try { file = decodeURIComponent(url.pathname); }
+  catch (e) {
+    res.writeHead(400, extra);
+    res.end("bad path");
+    return;
+  }
+  if (file === "/" || file === "") file = "/index.html";
+  rel = path.posix.normalize(file).replace(/^\/+/, "");
+  if (!rel || rel.split("/").indexOf("..") >= 0 || rel.indexOf("\0") >= 0) {
+    res.writeHead(404, extra);
+    res.end("not found");
+    return;
+  }
+  full = path.resolve(root, rel);
+  if ((!full.startsWith(root + path.sep) && full !== root) || !fs.existsSync(full) || !fs.statSync(full).isFile()) {
     res.writeHead(404, extra);
     res.end("not found");
     return;

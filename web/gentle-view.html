@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https: http://127.0.0.1:8545 http://localhost:8545">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https: http://127.0.0.1:8545 http://localhost:8545">
 <title>OnPlate</title>
 <meta name="description" content="View photographs stored on-chain, and buy one that is listed.">
 <meta property="og:title" content="OnPlate">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="gentle.css">
 </head>
 <body data-venue="view" data-feel="gentle">
-<script src="frame.js"></script>
+<script src="frame.js?v=1"></script>
 <header class="bar">
   <div class="brand">
     <button id="mark" class="mark" type="button" aria-expanded="false" aria-controls="artist-menu">OnPlate</button>
@@ -61,10 +61,10 @@
     <button id="warn-no" type="button">Cancel</button>
   </div>
 </dialog>
-<script src="keccak.js"></script>
-<script src="png.js"></script>
-<script src="bytecode.js"></script>
-<script src="chain.js?v=19"></script>
-<script src="app.js?v=29"></script>
+<script src="keccak.js?v=1"></script>
+<script src="png.js?v=1"></script>
+<script src="bytecode.js?v=1"></script>
+<script src="chain.js?v=20"></script>
+<script src="app.js?v=30"></script>
 </body>
 </html>

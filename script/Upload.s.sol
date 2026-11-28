@@ -15,6 +15,7 @@ interface IUploadFactory {
     function appendMax() external view returns (uint256);
     function photoCount() external view returns (uint256);
     function photoAt(uint256 id) external view returns (address);
+    function isPhoto(address plate) external view returns (bool);
     function liveWork(bytes32 key) external view returns (address);
     function openBook(uint256 count) external returns (address book);
     function openBook(uint256 count, address home) external returns (address book);
@@ -84,6 +85,7 @@ contract Upload is Script {
     // OPEN_MAX stays 4 in a deployed factory.
     uint256 internal constant GROUP = 4;
     uint256 internal constant TX_GAS = 16_777_216;
+    uint256 internal constant LOG_WINDOW = 40_000;
     string internal constant PROGRESS = "broadcast/upload-progress.json";
     bytes4 internal constant LINK_PHOTO =
         bytes4(keccak256("linkPhoto(bytes32,address[],uint16,uint16,address,bytes)"));
@@ -114,6 +116,7 @@ contract Upload is Script {
     }
 
     function run() external {
+        require(block.chainid != 1, "mainnet");
         Job memory job;
         job.sender = vm.envAddress("SENDER");
         job.factory = vm.envAddress("FACTORY");
@@ -150,7 +153,7 @@ contract Upload is Script {
         require(job.pieces > 0 && job.pieces <= IUploadFactory(job.factory).maxChunks(), "pieces");
         if (!IUploadFactory(job.factory).canAdd(job.sender) && job.pieces > IUploadFactory(job.factory).openMax()) {
             console2.log("pieces", job.pieces);
-            console2.log("A photograph larger than 4 pieces needs whitelist / boutique curation. Send this account’s public address in a direct message on X to @A_is_A. Nothing was sent.");
+            console2.log("A photograph larger than 4 pieces needs whitelist / boutique curation. Send this account's public address in a direct message on X to @A_is_A. Nothing was sent.");
             revert("open");
         }
         if (job.home != job.sender) {
@@ -198,12 +201,16 @@ contract Upload is Script {
         // named live pieces. Scanning every log again copies payloads into EVM
         // memory and OOGs a large photograph.
         if (countStored(job) == 0) adopt(job);
+        checkSavedBook(job);
         requireOwnPieces(job);
         console2.log("pieces already on-chain", countStored(job));
         if (job.book != address(0)) console2.log("book", job.book);
         if (job.plate != address(0)) {
             if (job.plate.code.length == 0) {
                 console2.log("The progress file names a plate that was never mined. It will be registered again.");
+                job.plate = address(0);
+            } else if (!plateMatches(job, job.plate)) {
+                console2.log("The progress file names a plate that is not this photograph. It will be registered again.");
                 job.plate = address(0);
             } else {
                 console2.log("This photograph is already registered.");
@@ -423,6 +430,34 @@ contract Upload is Script {
         return IUploadFactory(job.factory).liveWork(listKey(job.chunks));
     }
 
+    function plateMatches(Job memory job, address plate) internal view returns (bool) {
+        if (plate == address(0) || plate.code.length == 0) return false;
+        if (!IUploadFactory(job.factory).isPhoto(plate)) return false;
+        return IUploadPlate(plate).contentHash() == job.contentHash;
+    }
+
+    function checkSavedBook(Job memory job) internal view {
+        if (job.book == address(0) || job.book.code.length == 0) return;
+        IUploadBook opened = IUploadBook(job.book);
+        uint256 n = opened.chunkCount();
+        uint256 i;
+        if (opened.artist() != job.home || opened.expected() != job.pieces || n > job.pieces) {
+            console2.log("The progress file names a book that does not match this photograph. Nothing was sent.");
+            revert("progress");
+        }
+        for (i = 0; i < n; i++) {
+            address chunk = opened.chunkAt(i);
+            if (payloadHash(chunk) != keccak256(sliceAt(job.image, i * CHUNK_MAX))) {
+                console2.log("The progress file names a book that does not match this photograph. Nothing was sent.");
+                revert("progress");
+            }
+            if (job.chunks[i] != address(0) && job.chunks[i] != chunk) {
+                console2.log("The progress file names a book that does not match this photograph. Nothing was sent.");
+                revert("progress");
+            }
+        }
+    }
+
     /// Progress is a cache. Live code, payload, and ChunkBatch.maker have to match
     /// this sender before a piece is treated as ours. An empty maker is a raw
     /// CREATE and cannot register on this factory.
@@ -506,7 +541,7 @@ contract Upload is Script {
     /// Public Sepolia nodes cap eth_getLogs at 50,000 blocks. Factory and batch
     /// were created in this block. Anvil and a later mainnet start at 0.
     function logFrom() internal view returns (uint256) {
-        if (block.chainid == 11155111) return 12190877;
+        if (block.chainid == 11155111) return 12220965;
         return 0;
     }
 
@@ -517,21 +552,41 @@ contract Upload is Script {
     {
         bytes32[] memory topics = new bytes32[](1);
         topics[0] = keccak256("PieceCreated(address,uint256,address)");
-        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(logFrom(), block.number, job.batch, topics);
+        uint256 start = logFrom();
+        uint256 latest = block.number;
+        uint256 cursor;
+        uint256 to;
         uint256 n;
-        for (n = 0; n < logs.length; n++) {
-            if (logs[n].topics.length < 4) continue;
-            address payer = address(uint160(uint256(logs[n].topics[1])));
-            address chunk = address(uint160(uint256(logs[n].topics[3])));
-            bytes32 got = payloadHash(chunk);
-            if (payer == job.sender) assignOwn(job, want, taken, chunk, got);
+        if (start > latest) start = 0;
+        cursor = start;
+        while (cursor <= latest) {
+            to = cursor + LOG_WINDOW - 1;
+            if (to > latest) to = latest;
+            VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(cursor, to, job.batch, topics);
+            for (n = 0; n < logs.length; n++) {
+                if (logs[n].topics.length < 4) continue;
+                address payer = address(uint160(uint256(logs[n].topics[1])));
+                address chunk = address(uint160(uint256(logs[n].topics[3])));
+                bytes32 got = payloadHash(chunk);
+                if (payer == job.sender) assignOwn(job, want, taken, chunk, got);
+            }
+            if (to >= latest) break;
+            cursor = to + 1;
         }
-        for (n = 0; n < logs.length; n++) {
-            if (logs[n].topics.length < 4) continue;
-            address payer = address(uint160(uint256(logs[n].topics[1])));
-            if (payer == job.sender) continue;
-            bytes32 got = payloadHash(address(uint160(uint256(logs[n].topics[3]))));
-            if (matchesUntaken(want, taken, got)) return payer;
+        cursor = start;
+        while (cursor <= latest) {
+            to = cursor + LOG_WINDOW - 1;
+            if (to > latest) to = latest;
+            VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(cursor, to, job.batch, topics);
+            for (n = 0; n < logs.length; n++) {
+                if (logs[n].topics.length < 4) continue;
+                address payer = address(uint160(uint256(logs[n].topics[1])));
+                if (payer == job.sender) continue;
+                bytes32 got = payloadHash(address(uint160(uint256(logs[n].topics[3]))));
+                if (matchesUntaken(want, taken, got)) return payer;
+            }
+            if (to >= latest) break;
+            cursor = to + 1;
         }
     }
 
@@ -557,37 +612,57 @@ contract Upload is Script {
     function takeOpenBooks(Job memory job, bytes32[] memory want, bool[] memory taken, address foreign) internal view {
         bytes32[] memory topics = new bytes32[](1);
         topics[0] = keccak256("BookOpened(address,address,uint256)");
-        VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(logFrom(), block.number, job.factory, topics);
+        uint256 start = logFrom();
+        uint256 latest = block.number;
+        uint256 cursor;
+        uint256 to;
+        uint256 n;
         address best;
         uint256 bestCount;
         address foreignBook;
-        uint256 n;
-        for (n = 0; n < logs.length; n++) {
-            if (logs[n].topics.length < 3 || logs[n].data.length < 32) continue;
-            address book = address(uint160(uint256(logs[n].topics[1])));
-            address artist = address(uint160(uint256(logs[n].topics[2])));
-            uint256 count = abi.decode(logs[n].data, (uint256));
-            uint256 matched;
-            if (count != job.pieces || book.code.length == 0) continue;
-            if (artist != job.home) {
-                if (IUploadBook(book).chunkCount() > 0 && foreignBook == address(0)) {
-                    if (foreignBookMatches(job, book, want)) foreignBook = artist;
+        if (start > latest) start = 0;
+        cursor = start;
+        while (cursor <= latest) {
+            to = cursor + LOG_WINDOW - 1;
+            if (to > latest) to = latest;
+            VmSafe.EthGetLogs[] memory logs = vm.eth_getLogs(cursor, to, job.factory, topics);
+            for (n = 0; n < logs.length; n++) {
+                if (logs[n].topics.length < 3 || logs[n].data.length < 32) continue;
+                address book = address(uint160(uint256(logs[n].topics[1])));
+                address artist = address(uint160(uint256(logs[n].topics[2])));
+                uint256 count = abi.decode(logs[n].data, (uint256));
+                uint256 matched;
+                if (count != job.pieces || book.code.length == 0) continue;
+                if (artist != job.home) {
+                    if (IUploadBook(book).chunkCount() > 0 && foreignBook == address(0)) {
+                        if (foreignBookMatches(job, book, want)) foreignBook = artist;
+                    }
+                    continue;
                 }
-                continue;
+                matched = bookMatches(job, book, want, taken);
+                if (matched > bestCount) {
+                    best = book;
+                    bestCount = matched;
+                }
             }
-            matched = bookMatches(job, book, want, taken);
-            if (matched > bestCount) {
-                best = book;
-                bestCount = matched;
-            }
+            if (to >= latest) break;
+            cursor = to + 1;
         }
         if (job.book != address(0)) {
             uint256 saved = bookMatches(job, job.book, want, taken);
             if (saved == 0) {
-                console2.log("The progress file names a book that does not match this photograph. Nothing was sent.");
-                revert("progress");
+                IUploadBook openedSaved = IUploadBook(job.book);
+                if (job.book.code.length == 0) {
+                    job.book = address(0);
+                } else if (
+                    openedSaved.chunkCount() != 0 || openedSaved.artist() != job.home
+                        || openedSaved.expected() != job.pieces
+                ) {
+                    console2.log("The progress file names a book that does not match this photograph. Nothing was sent.");
+                    revert("progress");
+                }
             }
-            if (saved >= bestCount) {
+            if (saved >= bestCount && saved > 0) {
                 best = job.book;
                 bestCount = saved;
             }
