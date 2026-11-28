@@ -2155,7 +2155,7 @@
           }
           panel.appendChild(listRow);
         }));
-        actionBody.appendChild(actSwitch("Buyer", function (panel) {
+        actionBody.appendChild(actSwitch("Specify Buyer", function (panel) {
           var buyerLabel, allowed, buyerRow = row();
           panel.appendChild(el("p", "Leave this blank for a public listing. If you name an address, only that wallet can buy."));
           if (rowData.meta.buyer) {
@@ -2546,7 +2546,7 @@
     return "Park this photograph at an address of your choice; it will act as a vault. That vault address can only do one thing with the photo: return it to the wallet from which it came.";
   }
 
-  // List, Buyer, and Park sit in Actions. Each one opens its fields in place.
+  // List, Specify Buyer, and Park sit in Actions. Each one opens its fields in place.
   // A missing price or address uses the top note, not a line left under the button.
   function actSwitch(label, fill, startOpen) {
     var wrap = el("div");
